@@ -113,7 +113,9 @@ export function TranscribeDialog() {
         <select value={model} disabled={running} onChange={(e) => setModel(e.target.value)}>
           <option value="large-v3">large-v3 — {t('trBest')}</option>
           <option value="medium">medium — {t('trFaster')}</option>
+          <option value="small">small — {t('trSmall')}</option>
           <option value="base">base — {t('trDraft')}</option>
+          <option value="tiny">tiny — {t('trTiny')}</option>
         </select>
       </label>
       <label className="insp-field">

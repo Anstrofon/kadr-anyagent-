@@ -1,15 +1,40 @@
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
-import { existsSync } from 'fs'
+import { resolve, join } from 'path'
+import { existsSync, readFileSync } from 'fs'
+import { homedir } from 'os'
 
 // Electron's GPU process is forked from a zygote that starts BEFORE main.ts
 // runs, so the EGL vendor for the discrete GPU (electron/gpu.ts) has to be in
 // the environment the app is launched with — and this file runs in exactly
-// that process. On its own the variable changes nothing (Chromium's default
-// GL backend here is GLX); it only matters once gpu.ts asks for gl-egl.
+// that process. It may only be set when gpu.ts actually chose the discrete
+// card: under Wayland Chromium composites through EGL, and pointing EGL at
+// NVIDIA while the window's buffers come from the integrated GPU that drives
+// the display makes eglCreateImage fail — the GPU process then dies in a loop
+// ("OzoneImageBacking::ProduceSkiaGanesh failed", exit_code=8704) and the
+// window stays black. On X11 the default GLX path ignored the variable, which
+// hid this. So mirror gpu.ts's decision here: only an explicit 'discrete'
+// preference (env or the saved one) may take over EGL.
 const NV_EGL = '/usr/share/glvnd/egl_vendor.d/10_nvidia.json'
-if (process.platform === 'linux' && existsSync(NV_EGL) && !process.env.__EGL_VENDOR_LIBRARY_FILENAMES) {
+
+function discreteGpuRequested(): boolean {
+  if (process.env.KADR_GPU) return process.env.KADR_GPU === 'discrete'
+  try {
+    const config = process.env.XDG_CONFIG_HOME || join(homedir(), '.config')
+    const dir = process.env.KADR_USER_DATA || join(config, 'kadr')
+    const saved = JSON.parse(readFileSync(join(dir, 'gpu.json'), 'utf8'))
+    return saved.pref === 'discrete' && !saved.fallback
+  } catch {
+    return false
+  }
+}
+
+if (
+  process.platform === 'linux' &&
+  discreteGpuRequested() &&
+  existsSync(NV_EGL) &&
+  !process.env.__EGL_VENDOR_LIBRARY_FILENAMES
+) {
   process.env.__EGL_VENDOR_LIBRARY_FILENAMES = NV_EGL
 }
 

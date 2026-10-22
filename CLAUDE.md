@@ -53,9 +53,15 @@ mixes audio and muxes/transcodes per preset.
 
 ## Requirements
 - Node.js ≥ 20, system `ffmpeg`/`ffprobe` in PATH
-- Optional: `python3` + `faster-whisper` (speech-to-text), the `claude`
-  CLI (embedded AI assistant), network access for the one-time Remotion
-  workspace install
+- Optional: `python3` + `faster-whisper` (speech-to-text) in a project
+  venv — `python3 -m venv .venv && .venv/bin/pip install --no-cache-dir -r
+  python/requirements.txt`; `electron/transcribe.ts` finds `.venv` itself
+  (or `KADR_TRANSCRIBE_PYTHON`) and keeps the models in
+  `python/cache/huggingface`. `python/requirements-cuda.txt` adds cuBLAS +
+  cuDNN 9 to the venv (main adds their folders to `LD_LIBRARY_PATH`);
+  `transcribe.py` tries CUDA and falls back to CPU — the `claude` CLI
+  (embedded AI assistant),
+  network access for the one-time Remotion workspace install
 - Optional for voice-over: an ElevenLabs API key (entered in the app,
   stored outside the project); for the defect detector, python ≥ 3.11
   with `torch` — the interpreter is a setting (`KADR_TTSQC_PYTHON`), and
@@ -160,7 +166,17 @@ mixes audio and muxes/transcodes per preset.
 - `electron/transcribe.ts` + `scripts/transcribe.py` — faster-whisper
   runner (VAD, anti-hallucination thresholds and post-filters, NDJSON
   segments with word timestamps); audio comes from an ExportMuxer mixdown
-  (WYSIWYG).
+  (WYSIWYG). The interpreter is `KADR_TRANSCRIBE_PYTHON`, else the project's
+  `.venv/bin/python3`, else `python3`; with a venv the models go to
+  `python/cache/huggingface` instead of the home cache. `python/requirements.txt`
+  pins `av<17` — PyAV 17+ dropped `av.open(metadata_errors=…)`, which
+  faster-whisper 1.2.1 still passes. The script sets
+  `HF_HUB_DISABLE_SYMLINKS=1` before importing the Hub: ntfs3 refuses the
+  Hub's relative cache symlinks, so models are stored as copies (~2x size).
+  With the CUDA wheels from
+  `requirements-cuda.txt` installed the script picks `cuda/int8_float16`
+  (a 4 GB card fits large-v3 that way) and only falls back to
+  `cpu/int8` when the libraries or the card are missing.
 - `shared/envelope.ts` + `electron/envelope.ts` — loudness envelope of a
   timeline range (Blender "Bake Sound to F-Curves" semantics: channels
   summed, |s|, one-pole follower with 5 ms attack / 200 ms release, frame

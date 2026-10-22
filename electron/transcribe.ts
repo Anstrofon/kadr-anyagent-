@@ -4,13 +4,70 @@
 // text to the renderer. One job at a time.
 import { app, ipcMain, BrowserWindow } from 'electron'
 import { spawn, ChildProcess } from 'child_process'
-import { promises as fs } from 'fs'
+import { promises as fs, existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { ExportMuxer, mixdownWav } from './ffmpeg'
 import type { TranscribeRequest, TranscribeResult, TranscribeSegment } from '@shared/types'
 
 let current: { muxer: ExportMuxer | null; py: ChildProcess | null; cancelled: boolean } | null = null
+
+/**
+ * Interpreter for scripts/transcribe.py. Distributions with a "managed"
+ * python3 (Arch among them) refuse pip installs outside a venv, so the usual
+ * place for faster-whisper is a project venv; prefer an explicit
+ * KADR_TRANSCRIBE_PYTHON, then <app>/.venv, then an activated venv / system
+ * python3 from PATH. The venv is not inside a packaged app (asar), so there
+ * this simply falls through.
+ */
+function projectVenv(): string {
+  const venv = join(app.getAppPath(), '.venv', 'bin', 'python3')
+  return existsSync(venv) ? venv : ''
+}
+
+function pythonForTranscribe(): string {
+  const want = process.env.KADR_TRANSCRIBE_PYTHON
+  if (want && want.trim()) return want.trim()
+  return projectVenv() || 'python3'
+}
+
+/**
+ * CUDA runtime installed as wheels (python/requirements-cuda.txt) lives inside
+ * the venv, not in the system loader path. CTranslate2 dlopens libcublas.so.12
+ * and libcudnn.so.9 by soname, so their folders must be on LD_LIBRARY_PATH
+ * when the interpreter starts.
+ */
+function venvNvidiaLibs(venvPython: string): string {
+  const root = join(venvPython, '..', '..', 'lib')
+  const dirs: string[] = []
+  try {
+    for (const py of readdirSync(root)) {
+      const nvidia = join(root, py, 'site-packages', 'nvidia')
+      if (!existsSync(nvidia)) continue
+      for (const pkg of readdirSync(nvidia)) {
+        const lib = join(nvidia, pkg, 'lib')
+        if (existsSync(lib)) dirs.push(lib)
+      }
+    }
+  } catch { /* CPU-only venv */ }
+  return dirs.join(':')
+}
+
+/**
+ * Where faster-whisper keeps its models. With a project venv the project is
+ * self-contained, so the models belong on the same disk as it: the default
+ * ~/.cache/huggingface may be a small home partition, and large-v3 alone is
+ * ~3 GB. An explicit HF_HOME in the environment always wins.
+ */
+function transcribeEnv(): NodeJS.ProcessEnv {
+  const py = projectVenv()
+  if (!py) return process.env
+  const env = { ...process.env }
+  if (!env.HF_HOME) env.HF_HOME = join(app.getAppPath(), 'python', 'cache', 'huggingface')
+  const cuda = venvNvidiaLibs(py)
+  if (cuda) env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH ? `${cuda}:${env.LD_LIBRARY_PATH}` : cuda
+  return env
+}
 
 async function run(win: BrowserWindow, req: TranscribeRequest): Promise<TranscribeResult> {
   if (current) throw new Error('transcription already running')
@@ -32,13 +89,13 @@ async function run(win: BrowserWindow, req: TranscribeRequest): Promise<Transcri
     let language = req.language
     let liveText = ''
     await new Promise<void>((resolve, reject) => {
-      const py = spawn('python3', [
+      const py = spawn(pythonForTranscribe(), [
         join(app.getAppPath(), 'scripts', 'transcribe.py'),
         '--audio', wav,
         '--model', req.model,
         '--language', req.language,
         '--duration', String(req.duration)
-      ], { stdio: ['ignore', 'pipe', 'pipe'] })
+      ], { env: transcribeEnv(), stdio: ['ignore', 'pipe', 'pipe'] })
       job.py = py
       let buf = ''
       let err = ''

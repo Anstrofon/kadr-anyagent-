@@ -210,7 +210,7 @@ Kadr — многодорожечный видеоредактор (Electron + R
 |---|---|---|
 | Node.js ≥ 20 | всё | |
 | ffmpeg + ffprobe | импорт, аудиомикс, экспорт | любая свежая сборка в PATH |
-| python3 + [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | распознавание речи, авто-субтитры | `pip install faster-whisper`; модели скачаются при первом запуске |
+| python3 + [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | распознавание речи, авто-субтитры | `python3 -m venv .venv && .venv/bin/pip install --no-cache-dir -r python/requirements.txt` (в Arch системный pip — «externally managed»); приложение само берёт `.venv`, модели качает при первом запуске в `python/cache/huggingface`; для NVIDIA ещё `pip install --no-cache-dir -r python/requirements-cuda.txt` — CUDA-библиотеки (~2 ГБ) живут в venv, CUDA включается сама, без неё — CPU (`--no-cache-dir` важен, если `~/.cache` на маленьком разделе) |
 | [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) | панель «Claude» | опционально; использует ваш существующий вход |
 | сеть (один раз) | workspace Remotion-фрагментов | `~/kadr-fragments`, ~150 МБ |
 | ключ [ElevenLabs](https://elevenlabs.io) | озвучка | опционально; вводится в настройках озвучки и хранится вне проекта |

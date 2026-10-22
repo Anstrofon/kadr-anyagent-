@@ -16,9 +16,18 @@ Hallucination defenses (Whisper invents text in silence/music):
   collapse runs of identical consecutive segments (classic loop artifact)
 """
 import argparse
+import itertools
 import json
 import os
 import sys
+
+# Hugging Face's cache places RELATIVE symlinks from snapshots/ into blobs/.
+# On some non-native filesystems (NTFS through ntfs3 here) os.symlink of such
+# a path fails with ENOENT halfway through a model download. Writing regular
+# copies instead works everywhere (an interrupted download can keep its blobs,
+# so the cache may use up to twice the model size). MUST be set before
+# huggingface_hub is imported.
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
 
 
 def emit(obj):
@@ -32,31 +41,80 @@ def main():
     ap.add_argument("--model", default="large-v3")
     ap.add_argument("--language", default="auto")
     ap.add_argument("--duration", type=float, default=0.0)
+    # auto: CUDA when it works, CPU otherwise. GTX 16-series and other 4 GB
+    # cards do not fit large-v3 in float16, so CUDA defaults to int8_float16.
+    ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
+    ap.add_argument("--compute-type", default="")
     args = ap.parse_args()
 
     from faster_whisper import WhisperModel
+    from faster_whisper.utils import download_model
 
     threads = max(4, (os.cpu_count() or 8) - 2)
-    model = WhisperModel(args.model, device="cpu", compute_type="int8", cpu_threads=threads)
 
-    segments, info = model.transcribe(
-        args.audio,
-        language=None if args.language == "auto" else args.language,
-        beam_size=5,
-        vad_filter=True,
-        vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=120),
-        condition_on_previous_text=False,
-        word_timestamps=True,
-        hallucination_silence_threshold=2.0,
-        no_speech_threshold=0.6,
-        log_prob_threshold=-1.0,
-        compression_ratio_threshold=2.4,
-    )
+    # Resolve the model BEFORE choosing a device: a download failure is not a
+    # CUDA failure and must not be reported (or retried) as one.
+    try:
+        model_path = args.model if os.path.isdir(args.model) else download_model(args.model)
+    except Exception as exc:
+        sys.stderr.write(f"model download failed: {exc}\n")
+        raise
+
+    def load(device, compute_type):
+        return WhisperModel(model_path, device=device, compute_type=compute_type,
+                            cpu_threads=threads)
+
+    model = None
+    device = "cpu"
+    if args.device in ("auto", "cuda"):
+        try:
+            model = load("cuda", args.compute_type or "int8_float16")
+            device = "cuda"
+        except Exception as exc:
+            if args.device == "cuda":
+                raise
+            # no driver / cuBLAS / cuDNN, or not enough VRAM — CPU still works
+            print(f"[kadr] CUDA unavailable, using CPU: {exc}", file=sys.stderr)
+    if model is None:
+        model = load("cpu", args.compute_type or "int8")
+
+    def transcribe(model):
+        return model.transcribe(
+            args.audio,
+            language=None if args.language == "auto" else args.language,
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=120),
+            condition_on_previous_text=False,
+            word_timestamps=True,
+            hallucination_silence_threshold=2.0,
+            no_speech_threshold=0.6,
+            log_prob_threshold=-1.0,
+            compression_ratio_threshold=2.4,
+        )
+
+    # A model can LOAD on CUDA without its libraries being usable: ctranslate2
+    # resolves libcublas at the first encode, not at WhisperModel(). Pulling
+    # the first segment forces that encode before anything is emitted, so an
+    # "auto" run that cannot really use the card still falls back to CPU.
+    try:
+        segments, info = transcribe(model)
+        it = iter(segments)
+        first = next(it, None)
+    except Exception as exc:
+        if device != "cuda" or args.device == "cuda":
+            raise
+        print(f"[kadr] CUDA failed, using CPU: {exc}", file=sys.stderr)
+        model = load("cpu", args.compute_type or "int8")
+        device = "cpu"
+        segments, info = transcribe(model)
+        it = iter(segments)
+        first = next(it, None)
 
     total = args.duration or getattr(info, "duration", 0) or 0
     prev_text = None
     repeats = 0
-    for seg in segments:
+    for seg in itertools.chain([first] if first is not None else [], it):
         text = seg.text.strip()
         if not text:
             continue

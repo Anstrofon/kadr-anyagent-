@@ -13,6 +13,29 @@ const execFileP = promisify(execFile)
 export const FFMPEG = process.env.KADR_FFMPEG || 'ffmpeg'
 export const FFPROBE = process.env.KADR_FFPROBE || 'ffprobe'
 
+/**
+ * How to pass a filter graph through a file. The graph goes to a file because
+ * Linux caps ONE argv string at 128 KB and a big timeline's -filter_complex
+ * passes that (spawn failed with E2BIG). FFmpeg 7.0 added the generic
+ * `-/option <path>` form and deprecated `-filter_complex_script`, and some
+ * newer builds (9.x) no longer know the old switch at all — exiting 8 with
+ * "Unrecognized option 'filter_complex_script'". Ask the binary once.
+ */
+let filterGraphOption: Promise<string> | null = null
+function filterGraphArg(): Promise<string> {
+  if (!filterGraphOption) {
+    filterGraphOption = (async () => {
+      let version = ''
+      try {
+        version = (await execFileP(FFMPEG, ['-version'])).stdout
+      } catch { /* unknown build: keep the historical switch */ }
+      const m = /ffmpeg version n?(\d+)\.(\d+)/.exec(version)
+      return m && Number(m[1]) >= 7 ? '-/filter_complex' : '-filter_complex_script'
+    })()
+  }
+  return filterGraphOption
+}
+
 const IMAGE_EXT = /\.(png|jpe?g|webp|bmp|gif|tiff?)$/i
 
 export async function probeMedia(path: string): Promise<ProbeResult> {
@@ -832,7 +855,7 @@ export class ExportMuxer {
       }
       filterScript = join(tmpdir(), `kadr-filter-${process.pid}-${Date.now()}.txt`)
       await fsp.writeFile(filterScript, filters.join(';\n'))
-      args.push('-filter_complex_script', filterScript)
+      args.push(await filterGraphArg(), filterScript)
     }
 
     if (hasVideo) {

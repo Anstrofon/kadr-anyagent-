@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { create } from 'zustand'
 import { useEditor, projectDuration } from '@/state/store'
 import { autoCaptions, CAPTION_DEFAULTS, type CaptionStyle } from '@/engine/captions'
+import { logError } from '@/engine/log'
 import { useT } from '@/i18n'
 import { Icon } from './icons'
 import { Modal } from './Modal'
@@ -20,6 +21,7 @@ export function CaptionsDialog() {
   const [model, setModel] = useState('large-v3')
   const [language, setLanguage] = useState('auto')
   const [running, setRunning] = useState(false)
+  const [stage, setStage] = useState<'transcribe' | 'build'>('transcribe')
   const [progress, setProgress] = useState(0)
   const [liveText, setLiveText] = useState('')
   const [error, setError] = useState('')
@@ -38,7 +40,9 @@ export function CaptionsDialog() {
   const patch = (p: Partial<CaptionStyle>) => setStyle((s) => ({ ...s, ...p }))
 
   const close = () => {
-    if (running) return
+    // whisper itself must finish or be cancelled; once the cues exist the
+    // fragment build can run in the background without holding the dialog
+    if (running && stage === 'transcribe') return
     setError('')
     setLiveText('')
     setProgress(0)
@@ -47,16 +51,19 @@ export function CaptionsDialog() {
 
   async function run() {
     setRunning(true)
+    setStage('transcribe')
     setError('')
     setProgress(0)
     setLiveText('')
     try {
-      await autoCaptions({ range, style, maxWords, model, language })
+      await autoCaptions({ range, style, maxWords, model, language, onStage: setStage })
       setRunning(false)
       useCaptionsUi.getState().setOpen(false)
     } catch (err) {
       setRunning(false)
-      setError(String((err as Error)?.message ?? err))
+      const message = String((err as Error)?.message ?? err)
+      setError(message)
+      logError('субтитры', message, err)
     }
   }
 
@@ -66,11 +73,15 @@ export function CaptionsDialog() {
       onClose={close}
       titleIcon={<Icon name="captions" size={17} />}
       wide
-      closeDisabled={running}
+      closeDisabled={running && stage === 'transcribe'}
       actions={
         <>
         {running ? (
-          <button onClick={() => window.kadr.transcribeCancel()}>{t('cancel')}</button>
+          stage === 'build' ? (
+            <button onClick={close}>{t('close')}</button>
+          ) : (
+            <button onClick={() => window.kadr.transcribeCancel()}>{t('cancel')}</button>
+          )
         ) : (
           <>
             <button onClick={close}>{t('cancel')}</button>
@@ -93,6 +104,9 @@ export function CaptionsDialog() {
         <select value={model} disabled={running} onChange={(e) => setModel(e.target.value)}>
           <option value="large-v3">large-v3 — {t('trBest')}</option>
           <option value="medium">medium — {t('trFaster')}</option>
+          <option value="small">small — {t('trSmall')}</option>
+          <option value="base">base — {t('trDraft')}</option>
+          <option value="tiny">tiny — {t('trTiny')}</option>
         </select>
       </label>
       <label className="insp-field">
@@ -191,8 +205,10 @@ export function CaptionsDialog() {
       <div className="dim">{t('capMouseHint')}</div>
       {running && (
         <div className="export-progress">
-          <progress value={progress} max={1} />
-          <div className="dim tr-live">{liveText || t('trWorking')}</div>
+          <progress value={stage === 'build' ? undefined : progress} max={1} />
+          <div className="dim tr-live">
+            {stage === 'build' ? t('capBuilding') : (liveText || t('trWorking'))}
+          </div>
         </div>
       )}
       {error && (

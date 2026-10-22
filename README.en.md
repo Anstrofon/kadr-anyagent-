@@ -204,7 +204,7 @@ captions to this part”, watch it happen live in the preview.
 |---|---|---|
 | Node.js ≥ 20 | everything | |
 | ffmpeg + ffprobe | import, audio mix, export | any recent build in PATH |
-| python3 + [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | speech-to-text, auto-captions | `pip install faster-whisper`; models download on first use |
+| python3 + [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | speech-to-text, auto-captions | `python3 -m venv .venv && .venv/bin/pip install --no-cache-dir -r python/requirements.txt` (Arch ships an "externally managed" pip); the app picks `.venv` up by itself, models download on first use into `python/cache/huggingface`; on NVIDIA also `pip install --no-cache-dir -r python/requirements-cuda.txt` — the CUDA libraries (~2 GB) live in the venv, CUDA is used automatically and CPU otherwise (`--no-cache-dir` matters when `~/.cache` is on a small partition) |
 | [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) | the “Claude” panel | optional; uses your existing login |
 | network (one-time) | Remotion fragments workspace | `~/kadr-fragments`, ~150 MB |
 | an [ElevenLabs](https://elevenlabs.io) key | voice-over | optional; entered in the voice-over settings and kept outside the project |

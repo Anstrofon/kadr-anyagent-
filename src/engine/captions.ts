@@ -135,6 +135,9 @@ export interface AutoCaptionsOpts {
   maxWords: number
   model?: string
   language?: string
+  /** 'transcribe' while whisper runs, 'build' while the fragment is created
+      (the first fragment installs its workspace and can take a minute). */
+  onStage?: (stage: 'transcribe' | 'build') => void
 }
 
 /**
@@ -148,6 +151,7 @@ export async function autoCaptions(opts: AutoCaptionsOpts) {
   const end = opts.range?.end ?? projectDuration(project)
   if (!(end > start)) throw new Error('empty target')
 
+  opts.onStage?.('transcribe')
   const flow = await transcribeFlow({
     target: { kind: 'range', start, end },
     model: opts.model,
@@ -158,6 +162,7 @@ export async function autoCaptions(opts: AutoCaptionsOpts) {
   const cues = segmentsToRichCues(flow.segments, 0, opts.maxWords)
   if (!cues.length) throw new Error('no speech recognized in the target')
 
+  opts.onStage?.('build')
   const frag = await createFragment({
     name: 'captions',
     start,
