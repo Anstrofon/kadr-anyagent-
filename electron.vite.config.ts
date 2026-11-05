@@ -32,10 +32,14 @@ function discreteGpuRequested(): boolean {
 if (
   process.platform === 'linux' &&
   discreteGpuRequested() &&
-  existsSync(NV_EGL) &&
-  !process.env.__EGL_VENDOR_LIBRARY_FILENAMES
+  existsSync(NV_EGL)
 ) {
-  process.env.__EGL_VENDOR_LIBRARY_FILENAMES = NV_EGL
+  if (!process.env.__EGL_VENDOR_LIBRARY_FILENAMES) {
+    process.env.__EGL_VENDOR_LIBRARY_FILENAMES = NV_EGL
+  }
+  if (process.env.XDG_SESSION_TYPE === 'wayland' || process.env.WAYLAND_DISPLAY) {
+    process.env.ELECTRON_OZONE_PLATFORM_HINT = 'x11'
+  }
 }
 
 export default defineConfig({

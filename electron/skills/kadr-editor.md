@@ -213,7 +213,7 @@ document.querySelector('[data-act="play"]').click()
 
 | where | data-act |
 |---|---|
-| top bar | `undo` `redo` `new-project` `open-project` `save` `save-as` `export` `storage` `debug` `claude` `lang` |
+| top bar | `undo` `redo` `new-project` `open-project` `save` `save-as` `export` `storage` `debug` `agent` `lang` |
 | transport | `to-start` `play` `to-end` `split` `delete` `add-text` `snapshot` `popout` `onion` `onion-opacity` `onion-diff` |
 | timeline toolbar | `add-video` `add-audio` `transcribe-range` `captions` `beats` `beat-snap` `checks` `sounds` `neon-wave` `tts` `defects` `mark-defect` `mark-redo` `hide-defects` |
 | beats dialog | `beats-run` `beats-clear` |

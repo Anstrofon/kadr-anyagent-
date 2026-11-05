@@ -8,10 +8,11 @@ import { activity } from '@/engine/autosave'
 import { useT } from '@/i18n'
 import { token } from '@/theme'
 import { Icon } from './icons'
+import { AgentSettingsDialog } from './AgentSettingsDialog'
 
 // panel position/size, persisted across launches; null = the default CSS
 // placement (docked to the right edge)
-const RECT_KEY = 'kadr.claudeRect'
+const RECT_KEY = 'kadr.agentRect'
 type PanelRect = { x: number; y: number; w: number; h: number }
 const MIN_W = 340
 const MIN_H = 220
@@ -36,15 +37,18 @@ function loadRect(): PanelRect | null {
 }
 
 /**
- * Embedded Claude Code session: an xterm terminal driven by a PTY in the
- * main process running the user's `claude` CLI, with the kadr MCP server
- * wired to this very editor instance. Closing the panel kills the session.
+ * Embedded AI agent session: an xterm terminal driven by a PTY in the
+ * main process running a CLI agent (Claude Code, opencode, or any MCP-compatible tool),
+ * with the kadr MCP server wired to this very editor instance. Closing the panel kills the session.
  */
-export function ClaudePanel({ onClose }: { onClose: () => void }) {
+export function AgentPanel({ onClose }: { onClose: () => void }) {
   const t = useT()
   const holder = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [rect, setRect] = useState<PanelRect | null>(loadRect)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [restartKey, setRestartKey] = useState(0)
 
   // shared drag plumbing for the header (move) and the edge handles (resize)
   const trackDrag = (
@@ -96,7 +100,8 @@ export function ClaudePanel({ onClose }: { onClose: () => void }) {
   // leave the panel attached to a session the cleanup already killed
   useEffect(() => {
     if (!holder.current) return
-    activity.claude = true
+    setFailed(false)
+    activity.agent = true
     const term = new Terminal({
       fontSize: 13,
       fontFamily: 'monospace',
@@ -114,8 +119,9 @@ export function ClaudePanel({ onClose }: { onClose: () => void }) {
     fit.fit()
 
     const offData = window.kadr.onClaudeData((data) => term.write(data))
-    const offExit = window.kadr.onClaudeExit(() => {
-      term.write(`\r\n\x1b[90m${t('claudeExited')}\x1b[0m\r\n`)
+    const offExit = window.kadr.onClaudeExit((code) => {
+      term.write(`\r\n\x1b[90m${t('agentExited')}\x1b[0m\r\n`)
+      if (code !== 0) setFailed(true)
     })
     const onData = term.onData((data) => window.kadr.claudeInput(data))
 
@@ -131,7 +137,8 @@ export function ClaudePanel({ onClose }: { onClose: () => void }) {
     window.kadr.claudeOpen(term.cols, term.rows, cwd).then((r) => {
       if (dead) return
       if (!r.ok) {
-        term.write(`\x1b[31m${t('claudeFailed')}: ${r.error ?? ''}\x1b[0m\r\n`)
+        setFailed(true)
+        term.write(`\x1b[31m${t('agentFailed')}: ${r.error ?? ''}\x1b[0m\r\n`)
       } else {
         term.focus()
       }
@@ -140,7 +147,7 @@ export function ClaudePanel({ onClose }: { onClose: () => void }) {
 
     return () => {
       dead = true
-      activity.claude = false
+      activity.agent = false
       ro.disconnect()
       onData.dispose()
       offData()
@@ -149,34 +156,82 @@ export function ClaudePanel({ onClose }: { onClose: () => void }) {
       term.dispose()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [restartKey])
 
   return (
-    <div
-      className="claude-panel"
-      ref={panelRef}
-      style={rect
-        ? { left: rect.x, top: rect.y, width: rect.w, height: rect.h, right: 'auto', bottom: 'auto' }
-        : undefined}
-    >
-      <div className="claude-head" onPointerDown={startMove}>
-        <span><Icon name="bot" size={15} /> Claude Code</span>
-        <span className="dim claude-hint">{t('claudeHint')}</span>
-        <button
-          className="claude-close"
-          title={t('claudeClose')}
-          aria-label={t('claudeClose')}
-          onClick={onClose}
-        >
-          <Icon name="close" size={15} />
-        </button>
+    <>
+      <div
+        className="agent-panel"
+        ref={panelRef}
+        style={rect
+          ? { left: rect.x, top: rect.y, width: rect.w, height: rect.h, right: 'auto', bottom: 'auto' }
+          : undefined}
+      >
+        <div className="panel-head" onPointerDown={startMove}>
+          <span><Icon name="bot" size={15} /> AI Agent</span>
+          <span className="dim panel-hint">{t('agentHint')}</span>
+          <button
+            className="panel-close"
+            style={{ marginRight: 2 }}
+            title="Налаштування AI агента"
+            aria-label="Налаштування AI агента"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Icon name="settings" size={14} />
+          </button>
+          <button
+            className="panel-close"
+            title={t('agentClose')}
+            aria-label={t('agentClose')}
+            onClick={onClose}
+          >
+            <Icon name="close" size={15} />
+          </button>
+        </div>
+        {failed && (
+          <div style={{
+            padding: '6px 12px',
+            background: 'var(--c-bg-2, #181b22)',
+            borderBottom: '1px solid var(--c-line, #282c37)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 12
+          }}>
+            <span style={{ color: 'var(--c-danger, #f55)' }}>
+              ⚠️ Агента не знайдено або сталася помилка запуску.
+            </span>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              style={{
+                padding: '2px 8px',
+                fontSize: 11,
+                cursor: 'pointer',
+                background: 'var(--c-accent, #3b82f6)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 4
+              }}
+            >
+              Налаштувати
+            </button>
+          </div>
+        )}
+        <div className="agent-term" ref={holder} />
+        <div className="agent-rs l" onPointerDown={startResize({ l: true })} />
+        <div className="agent-rs r" onPointerDown={startResize({ r: true })} />
+        <div className="agent-rs b" onPointerDown={startResize({ b: true })} />
+        <div className="agent-rs bl" onPointerDown={startResize({ l: true, b: true })} />
+        <div className="agent-rs br" onPointerDown={startResize({ r: true, b: true })} />
       </div>
-      <div className="claude-term" ref={holder} />
-      <div className="claude-rs l" onPointerDown={startResize({ l: true })} />
-      <div className="claude-rs r" onPointerDown={startResize({ r: true })} />
-      <div className="claude-rs b" onPointerDown={startResize({ b: true })} />
-      <div className="claude-rs bl" onPointerDown={startResize({ l: true, b: true })} />
-      <div className="claude-rs br" onPointerDown={startResize({ r: true, b: true })} />
-    </div>
+
+      <AgentSettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={() => {
+          setRestartKey((k) => k + 1)
+        }}
+      />
+    </>
   )
 }

@@ -35,7 +35,7 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion'
 import meta from './meta.json'
 
 // Auto-generated captions (Kadr). Word-precise timings from faster-whisper.
-// Safe to edit by hand or by Claude — the preview hot-reloads.
+// Safe to edit by hand or by an AI agent — the preview hot-reloads.
 
 const CUES = ${JSON.stringify(
     cues.map((c) => ({

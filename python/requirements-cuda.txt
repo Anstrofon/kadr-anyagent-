@@ -1,0 +1,11 @@
+# NVIDIA (CUDA 12) transcription on top of requirements.txt.
+#   .venv/bin/pip install --no-cache-dir -r python/requirements-cuda.txt
+# --no-cache-dir keeps the ~1.4 GB of wheels out of ~/.cache/pip.
+# CTranslate2 loads libcublas.so.12 / libcudnn.so.9 at runtime; keeping them in
+# the venv avoids Arch's cuda/cudnn packages (several GB on the root partition).
+# electron/transcribe.ts puts these lib folders on LD_LIBRARY_PATH when it
+# launches scripts/transcribe.py, which picks CUDA by itself and silently
+# falls back to CPU when the libraries or VRAM are missing.
+-r requirements.txt
+nvidia-cublas-cu12>=12,<13
+nvidia-cudnn-cu12>=9,<10

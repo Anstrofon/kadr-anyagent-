@@ -48,7 +48,7 @@ export function SoundsDialog() {
   const audio = useRef<HTMLAudioElement | null>(null)
 
   // re-read on every opening: the library is cached in the engine (instant),
-  // but sounds added since — a rescan, or ones the embedded Claude placed in the
+  // but sounds added since — a rescan, or ones the embedded AI agent placed in the
   // user folder — must show up without restarting the editor
   useEffect(() => {
     if (!open) return

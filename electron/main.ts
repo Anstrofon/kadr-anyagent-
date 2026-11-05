@@ -10,7 +10,7 @@ import {
 } from './ffmpeg'
 import { mediaCacheKey, proxySuffix, decodedSuffix, reverseSuffix } from './cacheKeys'
 import { registerStorageIpc } from './storage'
-import { registerClaudeIpc } from './claude'
+import { registerAgentIpc } from './agent'
 import { registerTranscribeIpc } from './transcribe'
 import { registerTtsIpc } from './tts'
 import { registerVoiceIpc } from './voice'
@@ -19,6 +19,9 @@ import { registerSoundsIpc } from './sounds'
 import { registerFragmentIpc, cancelFragmentRenders, stopAllCaptures } from './fragments'
 import { applyGpuChoice, registerGpuIpc } from './gpu'
 import { registerModelIpc } from './models'
+import { registerYouTubeIpc } from './youtube'
+import { registerMotionTrackerIpc } from './motionTracker'
+import { registerImageSearchIpc } from './imageSearch'
 import { sourceHdr, hdrLut, hdrFilter, fragmentMedia } from './hdr'
 import type { ExportJob, Project } from '@shared/types'
 
@@ -267,7 +270,7 @@ app.whenReady().then(() => {
   registerIpc()
   void pruneDecodedCache()
   void sweepPartFiles()
-  registerClaudeIpc(() => win)
+  registerAgentIpc(() => win)
   registerTranscribeIpc(() => win)
   registerTtsIpc(() => win)
   registerVoiceIpc(() => win)
@@ -276,6 +279,9 @@ app.whenReady().then(() => {
   registerStorageIpc()
   registerGpuIpc()
   registerModelIpc()
+  registerYouTubeIpc()
+  registerMotionTrackerIpc()
+  registerImageSearchIpc()
   registerFragmentIpc(() => win)
   createWindow()
   app.on('activate', () => {

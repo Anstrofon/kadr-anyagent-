@@ -66,7 +66,7 @@ wireOnion()
   void window.kadr.gpuReport?.(name).then((mode) => logInfo('видеокарта', `${name} (${mode === 'discrete' ? 'дискретная' : 'по умолчанию'})`))
 }
 
-// Scripting surface for automation and AI integration (Claude Code / MCP):
+// Scripting surface for automation and AI integration (AI agents / MCP):
 // every editor operation is reachable from here.
 ;(window as any).kadrEditor = {
   useEditor, useSettings, usePosePresets, useFxPresets, projectDuration, uid, newClipDefaults,
@@ -92,7 +92,7 @@ wireOnion()
   detectBeats, clearBeats, beatTimes, useBeatsUi, snapPoints,
   bakeAudio, bakeState, bakePlan, refreshStaleBakes,
   loadSoundLibrary, findSfx, addSound, setSoundMeta, sfxFamilies, SFX_FAMILIES, SFX_USES, useSoundsUi,
-  // the session log, so the embedded Claude can answer "почему не сработало?"
+  // the session log, so the embedded AI agent can answer "почему не сработало?"
   // by reading what actually failed instead of guessing
   useLog, logInfo, logWarn, logError, logAsText, clearLog
 }

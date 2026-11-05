@@ -305,7 +305,7 @@ export interface FragmentSpec {
 export interface FragmentInfo {
   id: string
   dir: string
-  entry: string // the TSX file Claude edits
+  entry: string // the TSX file the AI agent edits
   meta: FragmentSpec
 }
 
@@ -1306,7 +1306,7 @@ export interface KadrApi {
   /** mtime in ms, or null when missing — used to pick up external edits */
   statFile(path: string): Promise<number | null>
 
-  /** Embedded Claude Code terminal session (PTY in main + MCP bridge). */
+  /** Embedded AI agent terminal session (PTY in main + MCP bridge). */
   claudeOpen(cols: number, rows: number, cwd: string | null):
     Promise<{ ok: boolean; port?: number; error?: string }>
   claudeInput(data: string): void
@@ -1314,4 +1314,109 @@ export interface KadrApi {
   claudeClose(): Promise<void>
   onClaudeData(cb: (data: string) => void): () => void
   onClaudeExit(cb: (code: number) => void): () => void
+  agentGetConfig(): Promise<AgentSettings>
+  agentSaveConfig(cfg: AgentSettings): Promise<{ ok: boolean; error?: string }>
+
+  /** YouTube Cutter integration (yt-dlp) */
+  ytSearch(queryOrUrl: string): Promise<{ items: YouTubeItem[]; error?: string }>
+  ytGetStream(url: string): Promise<{ streamUrl?: string; error?: string }>
+  ytDownload(opts: YouTubeDownloadOptions): Promise<{ path?: string; error?: string }>
+  onYtProgress(cb: (p: { percent: number; status: string }) => void): () => void
+
+  /** Motion tracking via Python / OpenCV */
+  motionTrack(req: MotionTrackRequest): Promise<MotionTrackResult>
+  motionTrackCancel(): Promise<{ ok: boolean }>
+  onMotionTrackProgress(cb: (p: MotionTrackProgress) => void): () => void
+
+  /** Image Search integration (Web, Pinterest, etc.) */
+  imageSearch(opts: ImageSearchOptions): Promise<{ items: ImageSearchResult[]; error?: string }>
+  imageDownload(opts: ImageDownloadOptions): Promise<{ path?: string; error?: string }>
 }
+
+export interface AgentSettings {
+  agent: 'opencode' | 'claude' | 'custom'
+  command?: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
+export interface YouTubeItem {
+  id: string
+  title: string
+  duration: number
+  uploader: string
+  thumbnail: string
+  url: string
+}
+
+export interface YouTubeDownloadOptions {
+  url: string
+  title: string
+  startSec?: number
+  endSec?: number
+  audioOnly?: boolean
+  projectDir?: string | null
+}
+
+export interface MotionTrackKeyframe {
+  frame: number
+  time: number // relative to start of tracking in clip, seconds
+  absTime: number // absolute time in media asset, seconds
+  nx: number // normalized center X (0..1)
+  ny: number // normalized center Y (0..1)
+  nw: number // normalized width (0..1)
+  nh: number // normalized height (0..1)
+  confidence: number
+}
+
+export interface MotionTrackRequest {
+  videoPath: string
+  start: number
+  end: number
+  box: { nx: number; ny: number; nw: number; nh: number }
+  method?: 'lk' | 'template' | 'mil'
+  fps?: number
+}
+
+export interface MotionTrackProgress {
+  frame: number
+  total: number
+  percent: number
+  time: number
+  nx: number
+  ny: number
+}
+
+export interface MotionTrackResult {
+  fps: number
+  width: number
+  height: number
+  totalFrames: number
+  keyframes: MotionTrackKeyframe[]
+  error?: string
+}
+
+export interface ImageSearchResult {
+  id: string
+  title: string
+  image: string
+  thumbnail: string
+  width?: number
+  height?: number
+  sourceUrl?: string
+  domain?: string
+}
+
+export interface ImageSearchOptions {
+  query: string
+  source?: 'web' | 'pinterest' | 'wallpapers' | 'transparent'
+  page?: number
+}
+
+export interface ImageDownloadOptions {
+  url: string
+  title?: string
+  projectDir?: string | null
+}
+
+

@@ -10,6 +10,7 @@ import { videoLayersAt } from '@/engine/player'
 import { useT, type TKey } from '@/i18n'
 import { Icon, type IconName } from './icons'
 import { CtxMenu } from './CtxMenu'
+import { useMotionTrackerUi } from './MotionTrackerDialog'
 
 const KF_EPS = 0.02
 
@@ -806,6 +807,14 @@ export function AnimEditor({ width }: { width: number }) {
         >
           <Icon name="star" size={14} /> {t('presets')}
         </button>
+        {asset && asset.kind !== 'image' && asset.duration > 0 && (
+          <button
+            title="Motion Tracking — Відстеження об'єкта"
+            onClick={() => useMotionTrackerUi.getState().openWithClip(clip.id)}
+          >
+            <Icon name="target" size={14} /> {t('motionTracking')}
+          </button>
+        )}
         <span className="flex1" />
         <button className={`link-toggle ${linked ? 'on' : ''}`} title={t('linkHint')} onClick={toggleLink}>
           <Icon name={linked ? 'link' : 'unlink'} size={14} /> {t('linkToTimeline')}

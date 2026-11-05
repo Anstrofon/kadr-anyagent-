@@ -3,7 +3,7 @@
 // import it into the media bin. Fragments in iframe-overlay mode are DOM,
 // not GL — for the duration of a snapshot every active fragment is forced
 // through pixel capture so the PNG matches what the export would render.
-// This is also the embedded Claude's "eyes": kadr_snapshot returns the PNG
+// This is also the embedded AI agent's "eyes": kadr_snapshot returns the PNG
 // path for it to Read.
 import { useEditor } from '@/state/store'
 import { dirOf } from '@shared/paths'

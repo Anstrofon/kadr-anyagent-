@@ -79,9 +79,9 @@ export function StoragePanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="storage-panel">
-      <div className="claude-head">
+      <div className="panel-head">
         <span><Icon name="layers" size={15} /> {t('stTitle')}</span>
-        <span className="dim claude-hint">
+        <span className="dim panel-hint">
           {scan
             ? `${t('stTotal')} ${size(scan.totalBytes, t)}${
                 scan.freeBytes ? ` · ${t('stFree')} ${size(scan.freeBytes, t)}` : ''}`
@@ -91,7 +91,7 @@ export function StoragePanel({ onClose }: { onClose: () => void }) {
                 disabled={busy} onClick={() => void refresh()}>
           <Icon name="reload" size={14} />
         </button>
-        <button className="claude-close" title={t('close')} aria-label={t('close')} onClick={onClose}>
+        <button className="panel-close" title={t('close')} aria-label={t('close')} onClick={onClose}>
           <Icon name="close" size={15} />
         </button>
       </div>

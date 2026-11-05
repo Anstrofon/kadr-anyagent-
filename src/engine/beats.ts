@@ -107,7 +107,7 @@ export function clearBeats(range?: { start: number; end: number }): number {
   return useEditor.getState().clearBeatMarkers(range)
 }
 
-/** Beat markers of the project as plain times (for scripts / the embedded Claude). */
+/** Beat markers of the project as plain times (for scripts / the embedded AI agent). */
 export function beatTimes(project: Project, opts: { strongOnly?: boolean } = {}): number[] {
   return (project.markers ?? [])
     .filter((m) => m.kind === 'beat' && (!opts.strongOnly || m.strong))

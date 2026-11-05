@@ -8,6 +8,8 @@ import { useT } from '@/i18n'
 import { Icon, Spinner } from './icons'
 import { Modal } from './Modal'
 import { useModelsUi, insertModelFragment, prepareForFragment } from '@/engine/models'
+import { YouTubeDialog } from './YouTubeDialog'
+import { ImageSearchDialog } from './ImageSearchDialog'
 
 export function MediaBin() {
   const t = useT()
@@ -18,6 +20,8 @@ export function MediaBin() {
   const [busy, setBusy] = useState(false)
   const importing = useImportUi((s) => s.active > 0)
   const [sel, setSel] = useState<string[]>([])
+  const [ytOpen, setYtOpen] = useState(false)
+  const [imgOpen, setImgOpen] = useState(false)
   const [confirmIds, setConfirmIds] = useState<string[] | null>(null)
   const lastClick = useRef<string | null>(null)
   const [textsOpen, setTextsOpen] = useState(() => localStorage.getItem('kadr.textsOpen') !== '0')
@@ -99,6 +103,22 @@ export function MediaBin() {
             <Icon name="trash" size={13} /> {sel.length}
           </button>
         )}
+        <button
+          className="bin-yt-btn"
+          title="Завантажити та обрізати відео/аудіо з YouTube"
+          onClick={() => setYtOpen(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+          <Icon name="play" size={11} /> YouTube
+        </button>
+        <button
+          className="bin-img-btn"
+          title="Пошук та імпорт фото з Google та Pinterest"
+          onClick={() => setImgOpen(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        >
+          <Icon name="camera" size={11} /> Фото
+        </button>
         <button data-act="import" onClick={importMedia} disabled={busy || importing}>
           {busy || importing ? '…' : t('import')}
         </button>
@@ -255,6 +275,8 @@ export function MediaBin() {
           )}
         </>
       )}
+      <YouTubeDialog open={ytOpen} onClose={() => setYtOpen(false)} />
+      <ImageSearchDialog open={imgOpen} onClose={() => setImgOpen(false)} />
     </div>
   )
 }

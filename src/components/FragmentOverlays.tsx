@@ -13,7 +13,7 @@ import { Icon } from './icons'
  * Live Remotion fragments in the preview: each active 'remotion' clip gets
  * an iframe with the workspace Player page, positioned over the GL canvas
  * with the clip's transform and synced to the editor clock via postMessage.
- * No rendering happens — the dev server hot-reloads Claude's edits live.
+ * No rendering happens — the dev server hot-reloads the agent's edits live.
  */
 export function FragmentOverlays({ canvas }: { canvas: React.RefObject<HTMLCanvasElement> }) {
   const project = useEditor((s) => s.project)

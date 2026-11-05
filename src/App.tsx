@@ -6,7 +6,7 @@ import { Inspector } from './components/Inspector'
 import { Timeline } from './components/Timeline'
 import { TransportBar, LangSwitch } from './components/TransportBar'
 import { ExportDialog } from './components/ExportDialog'
-import { ClaudePanel } from './components/ClaudePanel'
+import { AgentPanel } from './components/AgentPanel'
 import { TranscribeDialog, SubtitlePanel } from './components/TextTools'
 import { CaptionsDialog } from './components/CaptionsDialog'
 import { NeonWaveDialog } from './components/NeonWaveDialog'
@@ -15,6 +15,7 @@ import { ChecksDialog } from './components/ChecksDialog'
 import { SoundsDialog } from './components/SoundsDialog'
 import { TtsSettingsDialog, SpeakDialog, refreshTtsKey } from './components/TtsDialog'
 import { DefectsDialog } from './components/DefectsDialog'
+import { MotionTrackerDialog } from './components/MotionTrackerDialog'
 import { DebugPanel } from './components/DebugPanel'
 import { StoragePanel } from './components/StoragePanel'
 import { Icon } from './components/icons'
@@ -120,7 +121,7 @@ export default function App() {
   const [tlHeight, setTlHeight] = useState(() =>
     Math.min(Number(localStorage.getItem('kadr.tlh')) || 330, window.innerHeight - 220)
   )
-  const [claudeOpen, setClaudeOpen] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [storageOpen, setStorageOpen] = useState(false)
   const popWin = usePopout((s) => s.win)
@@ -342,12 +343,12 @@ export default function App() {
           {logUnseen > 0 && <span className="log-badge">{logUnseen > 99 ? '99+' : logUnseen}</span>}
         </button>
         <button
-          className={claudeOpen ? 'claude-btn active' : 'claude-btn'}
-          data-act="claude"
-          title={t('claudeTitle')}
-          onClick={() => setClaudeOpen((v) => !v)}
+          className={agentOpen ? 'agent-btn active' : 'agent-btn'}
+          data-act="agent"
+          title={t('agentTitle')}
+          onClick={() => setAgentOpen((v) => !v)}
         >
-          <Icon name="bot" /> Claude
+          <Icon name="bot" /> AI
         </button>
         <LangSwitch />
       </div>
@@ -382,7 +383,8 @@ export default function App() {
       <TtsSettingsDialog />
       <SpeakDialog />
       <DefectsDialog />
-      {claudeOpen && <ClaudePanel onClose={() => setClaudeOpen(false)} />}
+      <MotionTrackerDialog />
+      {agentOpen && <AgentPanel onClose={() => setAgentOpen(false)} />}
       {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} />}
       {storageOpen && <StoragePanel onClose={() => setStorageOpen(false)} />}
       {/* The preview renders into one host div for the whole session; popping

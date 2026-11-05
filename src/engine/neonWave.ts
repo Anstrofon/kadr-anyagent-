@@ -411,7 +411,7 @@ export interface NeonWaveOpts {
  * Compute the loudness envelope of the range (WYSIWYG mix through the export
  * segment graph), scaffold an opaque fragment over the range and bake the
  * envelope + style into its TSX. Returns the clip (selected, live preview in
- * the iframe overlay) and the entry file for further hand/Claude tuning.
+ * the iframe overlay) and the entry file for further hand/AI-agent tuning.
  */
 export async function neonWave(opts: NeonWaveOpts) {
   const st = () => useEditor.getState()

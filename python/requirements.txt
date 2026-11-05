@@ -1,0 +1,11 @@
+# Speech-to-text for the editor (electron/transcribe.ts, scripts/transcribe.py).
+# Arch's python3 is "externally managed", so install this into a project venv:
+#   python3 -m venv .venv && .venv/bin/pip install -r python/requirements.txt
+# The app looks for <repo>/.venv/bin/python3 by itself.
+faster-whisper==1.2.1
+
+# PyAV 17+ removed av.open(metadata_errors=...), which faster-whisper 1.2.1
+# still passes; with 17+ transcription dies with
+#   open() got an unexpected keyword argument 'metadata_errors'
+# Bump this only together with faster-whisper, after checking av.open.
+av<17

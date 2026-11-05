@@ -20,6 +20,7 @@ import { useSoundsUi } from './SoundsDialog'
 import { useBeatsUi } from '@/engine/beats'
 import { useChecksUi } from '@/engine/checks'
 import { useTtsUi } from './TtsDialog'
+import { useMotionTrackerUi } from './MotionTrackerDialog'
 import { evalAnim } from '@/engine/anim'
 import { spanToProject, projectToSrc, type VisibleSpan } from '@/engine/voiceDefects'
 import { useVoiceUi, setVerdict, clearVerdict, addUserDefect, setDefectsHidden } from '@/engine/voiceCheck'
@@ -618,14 +619,24 @@ function TrackMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) 
               )
             }
             return (
-              <button
-                onClick={() => {
-                  void reverseClip(menu.clipId!)
-                  onClose()
-                }}
-              >
-                {a.reverseOf ? t('unreverse') : t('reverse')}
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    void reverseClip(menu.clipId!)
+                    onClose()
+                  }}
+                >
+                  {a.reverseOf ? t('unreverse') : t('reverse')}
+                </button>
+                <button
+                  onClick={() => {
+                    useMotionTrackerUi.getState().openWithClip(menu.clipId!)
+                    onClose()
+                  }}
+                >
+                  <Icon name="target" size={14} /> {t('motionTracking')}…
+                </button>
+              </>
             )
           })()}
           {(() => {

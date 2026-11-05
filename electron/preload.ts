@@ -236,7 +236,30 @@ const api: KadrApi = {
     const handler = (_e: unknown, code: number) => cb(code)
     ipcRenderer.on('claude:exit', handler)
     return () => ipcRenderer.removeListener('claude:exit', handler)
-  }
+  },
+
+  agentGetConfig: () => ipcRenderer.invoke('agent:get-config'),
+  agentSaveConfig: (cfg) => ipcRenderer.invoke('agent:set-config', cfg),
+
+  ytSearch: (queryOrUrl) => ipcRenderer.invoke('youtube:search', queryOrUrl),
+  ytGetStream: (url) => ipcRenderer.invoke('youtube:get-stream', url),
+  ytDownload: (opts) => ipcRenderer.invoke('youtube:download', opts),
+  onYtProgress: (cb) => {
+    const handler = (_e: unknown, p: { percent: number; status: string }) => cb(p)
+    ipcRenderer.on('youtube:progress', handler)
+    return () => ipcRenderer.removeListener('youtube:progress', handler)
+  },
+
+  motionTrack: (req) => ipcRenderer.invoke('motion:track', req),
+  motionTrackCancel: () => ipcRenderer.invoke('motion:cancel'),
+  onMotionTrackProgress: (cb) => {
+    const handler = (_e: unknown, p: any) => cb(p)
+    ipcRenderer.on('motion:track-progress', handler)
+    return () => ipcRenderer.removeListener('motion:track-progress', handler)
+  },
+
+  imageSearch: (opts) => ipcRenderer.invoke('image:search', opts),
+  imageDownload: (opts) => ipcRenderer.invoke('image:download', opts)
 }
 
 // contextIsolation is off (see main.ts: export frames pass by reference),

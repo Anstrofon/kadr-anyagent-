@@ -45,7 +45,7 @@ export function paramValues(fid: string, decl: Record<string, FragmentParamDecl>
 /**
  * Set one value live and schedule the save. Only the values moved in this
  * session are sent; main merges them into the file as it is on disk NOW, so an
- * edit of params.json by hand (or by Claude) since is not overwritten.
+ * edit of params.json by hand (or by an AI agent) since is not overwritten.
  */
 export function setParam(fid: string, name: string, value: FragmentParamValue) {
   const cur = useFragmentParams.getState().live[fid] ?? {}
@@ -75,7 +75,7 @@ async function save(fid: string, patch: Record<string, FragmentParamValue> | nul
       // pages have had time to reload the file (player page: 'kadr:params') —
       // dropped at once, a page still holding the old file would show the old
       // value for a moment — and only if nobody moved it meanwhile. From then
-      // on the file decides, so an edit of params.json by hand (or by Claude)
+      // on the file decides, so an edit of params.json by hand (or by an AI agent)
       // is not overridden by a value the editor still held.
       setTimeout(() => {
         if (timers.has(fid)) return

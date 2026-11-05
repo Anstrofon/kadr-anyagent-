@@ -58,7 +58,10 @@ function writeFile(f: GpuFile) {
 }
 
 const discreteAvailable = () =>
-  process.platform === 'linux' && existsSync(NV_EGL) && existsSync('/proc/driver/nvidia/version')
+  process.platform === 'linux' &&
+  existsSync(NV_EGL) &&
+  existsSync('/proc/driver/nvidia/version') &&
+  process.env.XDG_SESSION_TYPE !== 'wayland'
 
 let applied: 'discrete' | 'default' = 'default'
 let why = ''
@@ -70,6 +73,10 @@ export function applyGpuChoice() {
   const env = process.env.KADR_GPU as GpuPref | undefined
   const pref: GpuPref = env === 'auto' || env === 'discrete' || env === 'integrated' ? env : f.pref ?? 'auto'
   if (pref === 'integrated') { why = 'выбрана встроенная'; return }
+  if (process.env.XDG_SESSION_TYPE === 'wayland' && pref === 'discrete') {
+    why = 'дискретная графика для окна недоступна под Wayland (ограничение Chromium EGL) — используется встроенная Intel'
+    return
+  }
   if (!discreteAvailable()) { why = 'дискретной видеокарты NVIDIA нет'; return }
   if (pref === 'auto') { why = 'по умолчанию: на этой машине дискретная замерена медленнее (PRIME)'; return }
   if (f.fallback) { why = `откат: ${f.fallback.reason}`; return }
@@ -89,6 +96,10 @@ export function applyGpuChoice() {
   }
   app.commandLine.appendSwitch('use-angle', 'gl-egl')
   app.commandLine.appendSwitch('disable-gpu-memory-buffer-video-frames')
+  if (process.env.XDG_SESSION_TYPE === 'wayland' || process.env.WAYLAND_DISPLAY) {
+    app.commandLine.appendSwitch('ozone-platform', 'x11')
+    app.commandLine.appendSwitch('disable-vulkan')
+  }
   applied = 'discrete'
   why = 'выбрана дискретная'
 }

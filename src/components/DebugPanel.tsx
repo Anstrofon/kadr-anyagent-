@@ -52,9 +52,9 @@ export function DebugPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="debug-panel">
-      <div className="claude-head debug-head">
+      <div className="panel-head debug-head">
         <span><Icon name="terminal" size={15} /> {t('logTitle')}</span>
-        <span className="dim claude-hint">
+        <span className="dim panel-hint">
           {entries.length ? `${t('logEntries')}: ${entries.length}` : t('logHint')}
         </span>
         <button
@@ -80,7 +80,7 @@ export function DebugPanel({ onClose }: { onClose: () => void }) {
         >
           <Icon name="trash" size={14} />
         </button>
-        <button className="claude-close" title={t('close')} aria-label={t('close')} onClick={onClose}>
+        <button className="panel-close" title={t('close')} aria-label={t('close')} onClick={onClose}>
           <Icon name="close" size={15} />
         </button>
       </div>

@@ -1,24 +1,60 @@
 #!/usr/bin/env node
-// MCP stdio server bridging Claude Code to the running Kadr editor.
-// Spawned by claude itself (see kadr-mcp.json); forwards tool calls to the
-// editor's local HTTP bridge (port = argv[2]), which evaluates JS in the
+// MCP server bridging AI agents to the running Kadr editor.
+// Spawned by the embedded agent (see kadr-mcp.json); forwards tool calls to
+// the editor's local HTTP bridge (port = argv[2]), which evaluates JS in the
 // renderer where window.kadrEditor lives.
+//
+// Transports:
+//   • stdio  — always on; the embedded agent talks through it
+//   • StreamableHTTP — optional (--http-port N); any external MCP client
+//     (Antigravity, opencode, VS Code Copilot) can connect to
+//     http://127.0.0.1:N/mcp with the token in the x-kadr-token header
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js')
 const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js')
+const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js')
 const { z } = require('zod')
 const http = require('http')
+const fs = require('fs')
+const path = require('path')
+const os = require('os')
 
-const PORT = Number(process.argv[2])
-// Per-session secret for /eval. The editor generates it and passes it here
-// through the generated --mcp-config, so it never touches disk in a
-// world-readable place beyond that file; without it the bridge answers 403.
-const TOKEN = process.argv[3] || ''
+// Resolve bridge port & token:
+// 1. Explicit positional argv: mcp-bridge.cjs <port> <token>
+// 2. ~/.kadr/editor-bridge.json written by running Kadr instance
+// 3. Environment variables KADR_BRIDGE_PORT / KADR_BRIDGE_TOKEN
+let PORT = Number(process.argv[2])
+let TOKEN = process.argv[3] || ''
+
+if (!PORT || isNaN(PORT)) {
+  // If first arg was a flag like --http-port, reset PORT
+  PORT = 0
+  try {
+    const bridgeFile = path.join(os.homedir(), '.kadr', 'editor-bridge.json')
+    if (fs.existsSync(bridgeFile)) {
+      const data = JSON.parse(fs.readFileSync(bridgeFile, 'utf8'))
+      if (data && data.port) {
+        PORT = Number(data.port)
+        TOKEN = data.token || TOKEN
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+}
+
+if (!PORT && process.env.KADR_BRIDGE_PORT) {
+  PORT = Number(process.env.KADR_BRIDGE_PORT)
+  TOKEN = process.env.KADR_BRIDGE_TOKEN || TOKEN
+}
+
 if (!PORT) {
-  console.error('usage: mcp-bridge.cjs <editor-bridge-port> <token>')
+  console.error('[mcp-bridge] Error: No active Kadr editor bridge found.')
+  console.error('Make sure Kadr is running, or specify bridge parameters:')
+  console.error('  usage: mcp-bridge.cjs [<editor-bridge-port> <token>] [--http-port <port>]')
   process.exit(1)
 }
 
-// Never outlive our claude (stdin closes when it dies) or the editor
+// Never outlive our agent (stdin closes when it dies) or the editor
 // (bridge port stops answering) — an orphaned bridge inherits Chromium's
 // listening sockets and would block the next editor launch.
 process.stdin.on('end', () => process.exit(0))
@@ -33,6 +69,12 @@ setInterval(() => {
   req.on('timeout', () => { req.destroy(); if (++bridgeMisses >= 3) process.exit(0) })
   req.end()
 }, 10000).unref()
+
+// --http-port N: start a StreamableHTTP transport so external MCP clients
+// (Antigravity, opencode, VS Code Copilot, custom scripts) can connect.
+// The port is either explicit or auto-assigned (0 → random free port).
+const httpPortIdx = process.argv.indexOf('--http-port')
+const HTTP_PORT = httpPortIdx !== -1 ? Number(process.argv[httpPortIdx + 1] || 0) : null
 
 /** POST the code (async function body) to the editor, return parsed result. */
 function editorEval(code) {
@@ -847,7 +889,81 @@ server.registerTool('kadr_voice_learn', {
   } catch (e) { return asError(e) }
 })
 
-server.connect(new StdioServerTransport()).catch((e) => {
+// ---------------------------------------------------------------------------
+// Transport startup: stdio (always) + StreamableHTTP (when --http-port given)
+// ---------------------------------------------------------------------------
+
+/**
+ * Publish the MCP HTTP endpoint to a well-known file so external tools
+ * (Antigravity, opencode, custom scripts) can discover the running editor.
+ */
+function publishEndpoint(httpPort) {
+  const dir = path.join(os.homedir(), '.kadr')
+  const file = path.join(dir, 'mcp-endpoint.json')
+  const data = {
+    transport: 'streamable-http',
+    url: `http://127.0.0.1:${httpPort}/mcp`,
+    token: TOKEN,
+    pid: process.pid,
+    startedAt: new Date().toISOString()
+  }
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(file, JSON.stringify(data, null, 2))
+    // clean up on exit
+    const cleanup = () => { try { fs.unlinkSync(file) } catch { /* gone */ } }
+    process.on('exit', cleanup)
+    process.on('SIGINT', () => { cleanup(); process.exit(0) })
+    process.on('SIGTERM', () => { cleanup(); process.exit(0) })
+  } catch (err) {
+    console.error('[mcp-bridge] failed to write endpoint file:', err.message)
+  }
+}
+
+async function startTransports() {
+  // 1. stdio transport — always on (the embedded agent talks through it)
+  const stdioTransport = new StdioServerTransport()
+  await server.connect(stdioTransport)
+
+  // 2. StreamableHTTP transport — when --http-port is given
+  if (HTTP_PORT !== null) {
+    const httpServer = http.createServer(async (req, res) => {
+      // Token auth for external clients
+      if (req.headers['x-kadr-token'] !== TOKEN && TOKEN) {
+        res.writeHead(401, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'invalid or missing x-kadr-token header' }))
+        return
+      }
+
+      if (req.url === '/mcp') {
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined, // stateless mode
+        })
+        // Connect the MCP server to this transport for this request
+        await server.connect(transport)
+        await transport.handleRequest(req, res)
+      } else if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status: 'ok', pid: process.pid }))
+      } else {
+        res.writeHead(404).end()
+      }
+    })
+
+    httpServer.listen(HTTP_PORT, '127.0.0.1', () => {
+      const addr = httpServer.address()
+      const port = typeof addr === 'object' ? addr.port : HTTP_PORT
+      console.error(`[mcp-bridge] StreamableHTTP listening on http://127.0.0.1:${port}/mcp`)
+      publishEndpoint(port)
+    })
+
+    httpServer.on('error', (err) => {
+      console.error('[mcp-bridge] HTTP server error:', err.message)
+    })
+  }
+}
+
+startTransports().catch((e) => {
   console.error('mcp-bridge failed:', e)
   process.exit(1)
 })

@@ -198,7 +198,7 @@ export function SubtitlePanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id])
 
-  // pick up external edits (e.g. Claude editing the file) while clean
+  // pick up external edits (e.g. an AI agent editing the file) while clean
   useEffect(() => {
     if (!doc) return
     const timer = setInterval(async () => {
@@ -237,15 +237,15 @@ export function SubtitlePanel() {
 
   return (
     <div className="sub-panel">
-      <div className="claude-head">
+      <div className="panel-head">
         <span><Icon name={doc.format === 'srt' ? 'srt' : 'doc'} size={14} /> {doc.name}</span>
-        <span className="dim claude-hint">{doc.language ? `(${doc.language})` : ''}</span>
+        <span className="dim panel-hint">{doc.language ? `(${doc.language})` : ''}</span>
         <button disabled={!dirty} onClick={save}>{t('subSave')}{dirty ? ' *' : ''}</button>
         <button className="icon-only" onClick={() => void load(doc)}
                 title={t('subReload')} aria-label={t('subReload')}>
           <Icon name="reload" size={14} />
         </button>
-        <button className="claude-close" onClick={close} title={t('close')} aria-label={t('close')}>
+        <button className="panel-close" onClick={close} title={t('close')} aria-label={t('close')}>
           <Icon name="close" size={15} />
         </button>
       </div>

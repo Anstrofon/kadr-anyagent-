@@ -78,7 +78,7 @@ export function getAnalyser(): AnalyserNode {
 
 /**
  * What the preview's audio graph carries and how its output is doing — for
- * the debug panel, the embedded Claude and tests. `playback` is Chromium's
+ * the debug panel, the embedded AI agent and tests. `playback` is Chromium's
  * AudioContext.playbackStats: underrunEvents / underrunDuration are the
  * glitches you hear (the device asked for audio the graph had not made).
  */

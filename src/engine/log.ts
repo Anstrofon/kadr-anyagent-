@@ -77,7 +77,7 @@ export const markLogSeen = () => useLog.setState({ unseen: 0 })
 
 export const clearLog = () => useLog.setState({ entries: [], unseen: 0 })
 
-/** One plain-text block, for pasting into a bug report or to Claude. */
+/** One plain-text block, for pasting into a bug report or to an AI agent. */
 export function logAsText(): string {
   return useLog.getState().entries.map((e) => {
     const ts = logTime(e.t)
