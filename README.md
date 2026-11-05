@@ -6,7 +6,7 @@
 
 > [!NOTE]
 > **Про цей форк:**
-> Оригінальний проект розроблений автором **Black Triangle** ([HelpFreedom/kadr](https://github.com/HelpFreedom/kadr), підтримка автора на [Boosty](https://boosty.to/triangle_black/)).
+> Оригінальний проект розроблений автором **Black Triangle** ([HelpFreedom/kadr](https://github.com/HelpFreedom/kadr)).
 > Ця версія перероблена та розширена під власні потреби, насамперед щоб **прибрати жорстку прив'язку до платного Claude Code** і надати повну свободу вибору локальних або відкритих моделей (OpenCode, Ollama, DeepSeek тощо), а також додати ключові інструменти для щоденного швидкого монтажу.
 
 ![Демо Kadr](demo.gif)
