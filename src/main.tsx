@@ -41,6 +41,14 @@ import { detectBeats, clearBeats, beatTimes, useBeatsUi } from './engine/beats'
 import { bakeAudio, bakeState, bakePlan, refreshStaleBakes } from './engine/audioReact'
 import { loadSoundLibrary, findSfx, addSound, setSoundMeta, sfxFamilies, SFX_FAMILIES, SFX_USES } from './engine/sounds'
 import { useSoundsUi } from './components/SoundsDialog'
+import {
+  applyColorGrade,
+  downloadYouTubeMedia,
+  downloadAndImportImage,
+  motionTrackAndBind
+} from './engine/agentTools'
+import { cleanSpeechForClip } from './engine/cleanSpeech'
+import { COLOR_LOOK_PRESETS, COLOR_GRADE_DEFAULTS } from './gl/colorGrade'
 
 wireLog()   // first: everything below may want to report a failure
 wireProxies()
@@ -94,7 +102,10 @@ wireOnion()
   loadSoundLibrary, findSfx, addSound, setSoundMeta, sfxFamilies, SFX_FAMILIES, SFX_USES, useSoundsUi,
   // the session log, so the embedded AI agent can answer "почему не сработало?"
   // by reading what actually failed instead of guessing
-  useLog, logInfo, logWarn, logError, logAsText, clearLog
+  useLog, logInfo, logWarn, logError, logAsText, clearLog,
+  // High-level capabilities for AI agents
+  applyColorGrade, downloadYouTubeMedia, downloadAndImportImage,
+  motionTrackAndBind, cleanSpeechForClip, COLOR_LOOK_PRESETS, COLOR_GRADE_DEFAULTS
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

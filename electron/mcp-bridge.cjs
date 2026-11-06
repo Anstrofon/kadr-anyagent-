@@ -889,6 +889,230 @@ server.registerTool('kadr_voice_learn', {
   } catch (e) { return asError(e) }
 })
 
+server.registerTool('kadr_youtube', {
+  description:
+    'Search YouTube videos/audio or download media directly into the project.\n' +
+    'Actions:\n' +
+    '- "search": search YouTube by query, returns matching items (id, title, duration, uploader, url, thumbnail).\n' +
+    '- "download": download a video or audio by URL into the project media bin and optionally insert it onto the timeline. ' +
+    'Supports cutting a segment via startSec / endSec, downloading audio-only (mp3/wav) for music/sfx/podcasts.',
+  inputSchema: {
+    action: z.enum(['search', 'download']).describe('action to perform'),
+    query: z.string().optional().describe('search query or video URL for "search"'),
+    url: z.string().optional().describe('video/stream URL for "download"'),
+    title: z.string().optional().describe('custom asset title for "download"'),
+    audioOnly: z.boolean().optional().describe('true to extract and download only the audio track'),
+    startSec: z.number().optional().describe('trim segment start in seconds'),
+    endSec: z.number().optional().describe('trim segment end in seconds'),
+    insertOnTimeline: z.boolean().optional().describe('true to place the downloaded clip onto the timeline'),
+    trackId: z.string().optional().describe('target track id to insert on; defaults to first matching video/audio track'),
+    at: z.number().optional().describe('timeline time in seconds to insert at; defaults to playhead')
+  }
+}, async (args) => {
+  try {
+    if (args.action === 'search') {
+      if (!args.query) throw new Error('query parameter is required for action "search"')
+      return asText(await editorEval(`
+        const res = await window.kadr.ytSearch(${JSON.stringify(args.query)})
+        if (res.error) throw new Error(res.error)
+        return res.items || []`))
+    }
+    if (args.action === 'download') {
+      if (!args.url) throw new Error('url parameter is required for action "download"')
+      return asText(await editorEval(`
+        const r = await window.kadrEditor.downloadYouTubeMedia(
+          ${JSON.stringify({
+            url: args.url,
+            title: args.title || 'YouTube media',
+            audioOnly: args.audioOnly,
+            startSec: args.startSec,
+            endSec: args.endSec
+          })},
+          ${JSON.stringify({
+            insertOnTimeline: args.insertOnTimeline,
+            trackId: args.trackId,
+            at: args.at
+          })}
+        )
+        return {
+          assetId: r.asset.id,
+          name: r.asset.name,
+          duration: r.asset.duration,
+          path: r.asset.path,
+          insertedClipId: r.insertedClipId
+        }`))
+    }
+    throw new Error('unknown action')
+  } catch (e) { return asError(e) }
+})
+
+server.registerTool('kadr_image', {
+  description:
+    'Search for images/photos across the Web, Pinterest, Wallpaper catalogs or transparent PNG sources, ' +
+    'and download them directly into the project.\n' +
+    'Actions:\n' +
+    '- "search": search images by query and source ("web", "pinterest", "wallpapers", "transparent").\n' +
+    '- "download": download an image by URL into the project media bin and optionally insert it onto a video track.',
+  inputSchema: {
+    action: z.enum(['search', 'download']).describe('action to perform'),
+    query: z.string().optional().describe('search query for "search"'),
+    source: z.enum(['web', 'pinterest', 'wallpapers', 'transparent']).optional().describe('image source category'),
+    page: z.number().optional().describe('page number for search results'),
+    url: z.string().optional().describe('image URL for "download"'),
+    title: z.string().optional().describe('asset title for downloaded image'),
+    insertOnTimeline: z.boolean().optional().describe('true to place the image onto a video track'),
+    trackId: z.string().optional().describe('target track id; defaults to first video track'),
+    at: z.number().optional().describe('timeline time in seconds to insert at; defaults to playhead'),
+    duration: z.number().optional().describe('duration in seconds on timeline (default 5s)')
+  }
+}, async (args) => {
+  try {
+    if (args.action === 'search') {
+      if (!args.query) throw new Error('query parameter is required for action "search"')
+      return asText(await editorEval(`
+        const res = await window.kadr.imageSearch(${JSON.stringify({
+          query: args.query,
+          source: args.source || 'web',
+          page: args.page || 1
+        })})
+        if (res.error) throw new Error(res.error)
+        return res.items || []`))
+    }
+    if (args.action === 'download') {
+      if (!args.url) throw new Error('url parameter is required for action "download"')
+      return asText(await editorEval(`
+        const r = await window.kadrEditor.downloadAndImportImage(
+          ${JSON.stringify({
+            url: args.url,
+            title: args.title || 'Image'
+          })},
+          ${JSON.stringify({
+            insertOnTimeline: args.insertOnTimeline,
+            trackId: args.trackId,
+            at: args.at,
+            duration: args.duration || 5
+          })}
+        )
+        return {
+          assetId: r.asset.id,
+          name: r.asset.name,
+          width: r.asset.width,
+          height: r.asset.height,
+          path: r.asset.path,
+          insertedClipId: r.insertedClipId
+        }`))
+    }
+    throw new Error('unknown action')
+  } catch (e) { return asError(e) }
+})
+
+server.registerTool('kadr_clean_speech', {
+  description:
+    'Automatically clean an audio or voice clip on the timeline by detecting speech with Silero VAD, ' +
+    'shortening dead pauses to a natural pacing, and detecting/attenuating (or excising) breaths. ' +
+    'Produces a seamless new audio asset with micro-crossfades to eliminate clicks and updates the clip.',
+  inputSchema: {
+    clipId: z.string().describe('ID of the audio or video clip to clean'),
+    minSilence: z.number().optional().describe('minimum silence length to shorten in seconds (default 0.40)'),
+    targetSilence: z.number().optional().describe('target shortened silence length in seconds (default 0.20)'),
+    breathMode: z.enum(['duck', 'cut', 'keep']).optional().describe(
+      '"duck" (recommended: attenuate breath by dB), "cut" (remove breath), or "keep" (preserve breath)'),
+    breathDuckDb: z.number().optional().describe('attenuation in dB when breathMode is "duck" (default -18)'),
+    crossfadeMs: z.number().optional().describe('seam crossfade in milliseconds (default 15)')
+  }
+}, async ({ clipId, minSilence, targetSilence, breathMode, breathDuckDb, crossfadeMs }) => {
+  try {
+    return asText(await editorEval(`
+      const r = await window.kadrEditor.cleanSpeechForClip(
+        ${JSON.stringify(clipId)},
+        ${JSON.stringify({
+          minSilence: typeof minSilence === 'number' ? minSilence : 0.40,
+          targetSilence: typeof targetSilence === 'number' ? targetSilence : 0.20,
+          breathMode: breathMode || 'duck',
+          breathDuckDb: typeof breathDuckDb === 'number' ? breathDuckDb : -18,
+          crossfadeMs: typeof crossfadeMs === 'number' ? crossfadeMs : 15
+        })}
+      )
+      return {
+        silencesShortened: r.silencesShortened,
+        breathsDucked: r.breathsDucked,
+        breathsCut: r.breathsCut,
+        origDuration: r.origDuration,
+        newDuration: r.newDuration,
+        savedSeconds: r.savedSeconds,
+        outputPath: r.outputPath
+      }`))
+  } catch (e) { return asError(e) }
+})
+
+server.registerTool('kadr_color_grade', {
+  description:
+    'Apply professional cinematic color grading (Lumetri style) to any video or image clip. ' +
+    'Can apply predefined looks or fine-tune exposure, contrast, temperature, tint, shadows, highlights, saturation, clarity, vignette.',
+  inputSchema: {
+    clipId: z.string().describe('target clip ID to apply color grading to'),
+    preset: z.enum([
+      'tealOrange', 'cyberpunk', 'filmWarm', 'noir', 'cleanPunch', 'fadedMatte', 'reset'
+    ]).optional().describe('cinematic look preset'),
+    exposure: z.number().optional().describe('exposure adjustment (-2.0 to 2.0, default 0)'),
+    contrast: z.number().optional().describe('contrast factor (0.5 to 2.0, default 1.0)'),
+    saturation: z.number().optional().describe('saturation factor (0.0 to 2.5, default 1.0)'),
+    temperature: z.number().optional().describe('color temperature in Kelvin (2000 to 10000, default 6500 neutral)'),
+    tint: z.number().optional().describe('green-magenta tint (-100 to 100, default 0)'),
+    highlights: z.number().optional().describe('highlights recovery/boost (-100 to 100, default 0)'),
+    shadows: z.number().optional().describe('shadows lift/crush (-100 to 100, default 0)'),
+    clarity: z.number().optional().describe('midtones contrast / clarity (-100 to 100, default 0)'),
+    vignette: z.number().optional().describe('vignette darkness (0.0 to 1.0, default 0)')
+  }
+}, async (args) => {
+  try {
+    const { clipId, preset, ...restParams } = args
+    return asText(await editorEval(`
+      const r = await window.kadrEditor.applyColorGrade(
+        ${JSON.stringify(clipId)},
+        ${JSON.stringify({
+          preset: preset === 'reset' ? undefined : preset,
+          params: preset === 'reset' ? window.kadrEditor.COLOR_GRADE_DEFAULTS : restParams
+        })}
+      )
+      return { clipId: r.clipId, effectId: r.effectId, params: r.params }`))
+  } catch (e) { return asError(e) }
+})
+
+server.registerTool('kadr_motion_track', {
+  description:
+    'Track motion of an object/person in a video clip and optionally bind another clip (text, sticker, overlay, title) ' +
+    'to automatically follow the tracked movement across the timeline using animated keyframes.',
+  inputSchema: {
+    sourceClipId: z.string().describe('ID of the video clip containing the moving object to track'),
+    box: z.object({
+      nx: z.number().min(0).max(1).describe('normalized center X coordinate (0.0 to 1.0)'),
+      ny: z.number().min(0).max(1).describe('normalized center Y coordinate (0.0 to 1.0)'),
+      nw: z.number().min(0.01).max(1).describe('normalized box width (0.01 to 1.0)'),
+      nh: z.number().min(0.01).max(1).describe('normalized box height (0.01 to 1.0)')
+    }).describe('initial bounding box around the object to track'),
+    targetClipId: z.string().optional().describe('ID of another clip (e.g. text or graphic) to bind position to'),
+    startSec: z.number().optional().describe('relative start time within the clip in seconds (default 0)'),
+    endSec: z.number().optional().describe('relative end time within the clip in seconds (default clip duration)'),
+    method: z.enum(['lk', 'template', 'mil']).optional().describe('tracking algorithm: "lk" (Lucas-Kanade point flow), "template", or "mil"')
+  }
+}, async ({ sourceClipId, box, targetClipId, startSec, endSec, method }) => {
+  try {
+    return asText(await editorEval(`
+      const r = await window.kadrEditor.motionTrackAndBind(
+        ${JSON.stringify(sourceClipId)},
+        ${JSON.stringify(box)},
+        ${JSON.stringify({ targetClipId, startSec, endSec, method })}
+      )
+      return {
+        totalFrames: r.result.totalFrames,
+        fps: r.result.fps,
+        keyframesCount: r.result.keyframes ? r.result.keyframes.length : 0,
+        boundTargetClipId: r.boundTargetClipId
+      }`))
+  } catch (e) { return asError(e) }
+})
+
 // ---------------------------------------------------------------------------
 // Transport startup: stdio (always) + StreamableHTTP (when --http-port given)
 // ---------------------------------------------------------------------------
