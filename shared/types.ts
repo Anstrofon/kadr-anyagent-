@@ -1336,6 +1336,10 @@ export interface KadrApi {
 
   /** Voiceover audio recording from microphone */
   voiceoverSave(projectDir: string | null, baseName: string, data: Uint8Array): Promise<string>
+
+  /** Automatic speech silence shortening and breath cleanup */
+  cleanSpeech(req: CleanSpeechRequest): Promise<CleanSpeechResult>
+  onCleanSpeechProgress(cb: (p: { progress: number; stage: string }) => void): () => void
 }
 
 export interface AgentSettings {
@@ -1422,6 +1426,26 @@ export interface ImageDownloadOptions {
   url: string
   title?: string
   projectDir?: string | null
+}
+
+export interface CleanSpeechRequest {
+  audioPath: string
+  minSilence?: number
+  targetSilence?: number
+  breathMode?: 'duck' | 'cut' | 'keep'
+  breathDuckDb?: number
+  crossfadeMs?: number
+}
+
+export interface CleanSpeechResult {
+  outputPath: string
+  silencesShortened: number
+  breathsDucked: number
+  breathsCut: number
+  origDuration: number
+  newDuration: number
+  savedSeconds: number
+  error?: string
 }
 
 

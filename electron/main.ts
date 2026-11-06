@@ -22,6 +22,7 @@ import { registerModelIpc } from './models'
 import { registerYouTubeIpc } from './youtube'
 import { registerMotionTrackerIpc } from './motionTracker'
 import { registerImageSearchIpc } from './imageSearch'
+import { registerAudioCleanIpc } from './audioClean'
 import { sourceHdr, hdrLut, hdrFilter, fragmentMedia } from './hdr'
 import type { ExportJob, Project } from '@shared/types'
 
@@ -291,6 +292,7 @@ app.whenReady().then(() => {
   registerYouTubeIpc()
   registerMotionTrackerIpc()
   registerImageSearchIpc()
+  registerAudioCleanIpc(() => win)
   registerFragmentIpc(() => win)
   createWindow()
   app.on('activate', () => {

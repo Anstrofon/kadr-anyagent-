@@ -17,6 +17,7 @@ import { TtsSettingsDialog, SpeakDialog, refreshTtsKey } from './components/TtsD
 import { DefectsDialog } from './components/DefectsDialog'
 import { MotionTrackerDialog } from './components/MotionTrackerDialog'
 import { VoiceRecorderDialog, useVoiceRecorderUi } from './components/VoiceRecorderDialog'
+import { CleanSpeechDialog } from './components/CleanSpeechDialog'
 import { DebugPanel } from './components/DebugPanel'
 import { StoragePanel } from './components/StoragePanel'
 import { Icon } from './components/icons'
@@ -389,6 +390,7 @@ export default function App() {
       <DefectsDialog />
       <MotionTrackerDialog />
       <VoiceRecorderDialog />
+      <CleanSpeechDialog />
       {agentOpen && <AgentPanel onClose={() => setAgentOpen(false)} />}
       {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} />}
       {storageOpen && <StoragePanel onClose={() => setStorageOpen(false)} />}

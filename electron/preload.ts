@@ -263,7 +263,14 @@ const api: KadrApi = {
   imageDownload: (opts) => ipcRenderer.invoke('image:download', opts),
 
   voiceoverSave: (projectDir, baseName, data) =>
-    ipcRenderer.invoke('voiceover:save', projectDir, baseName, data)
+    ipcRenderer.invoke('voiceover:save', projectDir, baseName, data),
+
+  cleanSpeech: (req) => ipcRenderer.invoke('audio:clean-speech', req),
+  onCleanSpeechProgress: (cb) => {
+    const handler = (_e: unknown, p: { progress: number; stage: string }) => cb(p)
+    ipcRenderer.on('audio:clean-progress', handler)
+    return () => ipcRenderer.removeListener('audio:clean-progress', handler)
+  }
 }
 
 // contextIsolation is off (see main.ts: export frames pass by reference),

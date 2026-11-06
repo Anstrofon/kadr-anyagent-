@@ -9,6 +9,7 @@ import { audibleTracksInRange } from '@/engine/subtitles'
 import { useFragmentParams, paramValues, setParam, resetParams, rememberParamValues } from '@/engine/fragmentParams'
 import { CtxMenu } from './CtxMenu'
 import { Icon, Spinner } from './icons'
+import { useCleanSpeechUi } from '@/engine/cleanSpeech'
 
 function Num({
   label, value, step = 1, min, max, onChange
@@ -139,6 +140,20 @@ function ClipProps({ clip }: { clip: Clip }) {
         <input type="checkbox" checked={clip.muted}
           onChange={(e) => update({ muted: e.target.checked })} />
       </label>
+      {(() => {
+        const p = useEditor.getState().project
+        const a = clip.assetId ? p.assets.find((x) => x.id === clip.assetId) : null
+        if (!a?.hasAudio) return null
+        return (
+          <button
+            style={{ marginTop: 6 }}
+            data-act="clean-speech"
+            onClick={() => useCleanSpeechUi.getState().openWithClip(clip.id)}
+          >
+            <Icon name="scissors" size={14} /> {t('cleanSpeech')}
+          </button>
+        )
+      })()}
       {clip.kind === 'remotion' && <FragmentParamsSection clip={clip} />}
       {clip.kind === 'remotion' && <AudioReactSection clip={clip} />}
       <EffectsSection clip={clip} />

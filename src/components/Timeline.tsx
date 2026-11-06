@@ -22,6 +22,7 @@ import { useChecksUi } from '@/engine/checks'
 import { useTtsUi } from './TtsDialog'
 import { useMotionTrackerUi } from './MotionTrackerDialog'
 import { useVoiceRecorderUi } from './VoiceRecorderDialog'
+import { useCleanSpeechUi } from '@/engine/cleanSpeech'
 import { evalAnim } from '@/engine/anim'
 import { spanToProject, projectToSrc, type VisibleSpan } from '@/engine/voiceDefects'
 import { useVoiceUi, setVerdict, clearVerdict, addUserDefect, setDefectsHidden } from '@/engine/voiceCheck'
@@ -649,16 +650,26 @@ function TrackMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) 
               return <button disabled><Spinner size={14} /> {t('normalizing')}…</button>
             }
             return (
-              <button
-                onClick={() => {
-                  normalizeClip(menu.clipId!).catch((err) =>
-                    logWarn('громкость', 'нормализовать не удалось', err)
-                  )
-                  onClose()
-                }}
-              >
-                {t('normalize')}
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    useCleanSpeechUi.getState().openWithClip(menu.clipId!)
+                    onClose()
+                  }}
+                >
+                  <Icon name="scissors" size={14} /> {t('cleanSpeech')}
+                </button>
+                <button
+                  onClick={() => {
+                    normalizeClip(menu.clipId!).catch((err) =>
+                      logWarn('громкость', 'нормализовать не удалось', err)
+                    )
+                    onClose()
+                  }}
+                >
+                  {t('normalize')}
+                </button>
+              </>
             )
           })()}
           <button
