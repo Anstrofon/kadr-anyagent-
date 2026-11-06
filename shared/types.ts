@@ -1118,6 +1118,8 @@ export interface KadrApi {
   clipboardMedia(): Promise<string[]>
   /** Append a drop-diagnostics entry to userData/drop-log.jsonl. */
   dropLog(entry: unknown): void
+  /** Delete source media files and their generated caches from disk */
+  deleteMediaFiles?(paths: string[]): Promise<{ deleted: string[]; errors: string[] }>
 
   saveProjectDialog(currentName: string): Promise<string | null>
   openProjectDialog(): Promise<string | null>

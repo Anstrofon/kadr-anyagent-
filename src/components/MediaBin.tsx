@@ -23,6 +23,7 @@ export function MediaBin() {
   const [ytOpen, setYtOpen] = useState(false)
   const [imgOpen, setImgOpen] = useState(false)
   const [confirmIds, setConfirmIds] = useState<string[] | null>(null)
+  const [deleteFromDisk, setDeleteFromDisk] = useState(false)
   const lastClick = useRef<string | null>(null)
   const [textsOpen, setTextsOpen] = useState(() => localStorage.getItem('kadr.textsOpen') !== '0')
   const toggleTexts = () => {
@@ -80,10 +81,27 @@ export function MediaBin() {
 
   /** the cross on a tile removes it (or the whole selection it belongs to) */
   const requestDelete = (ids: string[]) => {
-    if (clipsUsing(ids) > 0) setConfirmIds(ids)
-    else doDelete(ids)
+    if (!ids.length) return
+    const set = new Set(ids)
+    const doomed = assets.filter((a) => set.has(a.id))
+    // Pre-check deleteFromDisk if any doomed assets are voiceover or project-internal recordings
+    const hasVoiceover = doomed.some((a) => a.path?.includes('voiceover') || a.name.toLowerCase().includes('voiceover'))
+    setDeleteFromDisk(hasVoiceover)
+    setConfirmIds(ids)
   }
-  const doDelete = (ids: string[]) => {
+  const doDelete = async (ids: string[], alsoDisk: boolean) => {
+    const set = new Set(ids)
+    const doomed = assets.filter((a) => set.has(a.id))
+    if (alsoDisk) {
+      const paths = doomed.map((a) => a.path).filter((p): p is string => typeof p === 'string' && !!p)
+      if (paths.length > 0 && window.kadr?.deleteMediaFiles) {
+        try {
+          await window.kadr.deleteMediaFiles(paths)
+        } catch (err) {
+          console.error('Failed to delete media files from disk', err)
+        }
+      }
+    }
     useEditor.getState().removeAssets(ids)
     setSel((s) => s.filter((x) => !ids.includes(x)))
     setConfirmIds(null)
@@ -215,8 +233,11 @@ export function MediaBin() {
           actions={
             <>
               <button onClick={() => setConfirmIds(null)}>{t('cancel')}</button>
-              <button className="primary danger" onClick={() => doDelete(confirmIds)}>
-                <Icon name="trash" /> {t('delete')}
+              <button
+                className="primary danger"
+                onClick={() => void doDelete(confirmIds, deleteFromDisk)}
+              >
+                <Icon name="trash" /> {deleteFromDisk ? t('binDeleteProjectAndDisk') : t('binDeleteProjectOnly')}
               </button>
             </>
           }
@@ -226,7 +247,35 @@ export function MediaBin() {
               .replace('{files}', String(confirmIds.length))
               .replace('{clips}', String(clipsUsing(confirmIds)))}
           </p>
-          <p className="dim">{t('binConfirmUndo')}</p>
+
+          <div className="bin-confirm-assets-list">
+            {assets.filter((a) => confirmIds.includes(a.id)).map((a) => {
+              const isVo = a.path?.includes('voiceover') || a.name.toLowerCase().includes('voiceover')
+              return (
+                <div key={a.id} className="bin-confirm-asset-row">
+                  <span className="bin-confirm-asset-name">
+                    <Icon name={isVo ? 'audio' : a.kind === 'video' ? 'film' : 'camera'} size={12} />
+                    {a.name}
+                  </span>
+                  {isVo && <span className="bin-vo-badge">{t('binVoiceoverBadge')}</span>}
+                </div>
+              )
+            })}
+          </div>
+
+          <label className="bin-disk-checkbox">
+            <input
+              type="checkbox"
+              checked={deleteFromDisk}
+              onChange={(e) => setDeleteFromDisk(e.target.checked)}
+            />
+            <span>{t('binDeleteFromDisk')}</span>
+          </label>
+          <p className="dim bin-disk-hint">
+            {deleteFromDisk ? t('binDeleteFromDiskWarn') : t('binDeleteFromDiskKeep')}
+          </p>
+
+          {!deleteFromDisk && <p className="dim bin-undo-hint">{t('binConfirmUndo')}</p>}
         </Modal>
       )}
       {texts.length > 0 && (

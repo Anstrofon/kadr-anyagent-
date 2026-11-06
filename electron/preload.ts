@@ -91,6 +91,7 @@ const api: KadrApi = {
   portalFiles: (key) => ipcRenderer.invoke('media:portal-files', key),
   clipboardMedia: () => ipcRenderer.invoke('media:clipboard-paste'),
   dropLog: (entry) => ipcRenderer.send('debug:drop-log', entry),
+  deleteMediaFiles: (paths) => ipcRenderer.invoke('media:delete-files', paths),
 
   saveProjectDialog: (name) => ipcRenderer.invoke('project:save-dialog', name),
   openProjectDialog: () => ipcRenderer.invoke('project:open-dialog'),

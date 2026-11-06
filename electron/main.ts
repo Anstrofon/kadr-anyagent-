@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, net, clipboard, session } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, protocol, net, clipboard, session, shell } from 'electron'
 import { join, dirname, basename } from 'path'
 import { promises as fs, createReadStream, statSync, existsSync, appendFileSync } from 'fs'
 import { tmpdir } from 'os'
@@ -636,6 +636,51 @@ function registerIpc() {
     if (r.canceled || !r.filePaths.length) return []
     void rememberDir('media', r.filePaths[0])
     return r.filePaths
+  })
+
+  ipcMain.handle('media:delete-files', async (_e, filePaths: string[]) => {
+    const deleted: string[] = []
+    const errors: string[] = []
+    const dirs = ['decoded', 'proxies', 'reversed', 'fragment-renders']
+    const userData = app.getPath('userData')
+
+    for (const filePath of filePaths) {
+      if (!filePath || typeof filePath !== 'string') continue
+      try {
+        // 1. Try to find and delete any caches for this file
+        try {
+          const st = statSync(filePath)
+          const baseKey = mediaCacheKey(filePath, st.size, st.mtimeMs).slice(0, 16)
+          for (const d of dirs) {
+            const dirPath = join(userData, d)
+            try {
+              const entries = await fs.readdir(dirPath)
+              for (const file of entries) {
+                if (file.startsWith(baseKey)) {
+                  await fs.unlink(join(dirPath, file)).catch(() => {})
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+
+        // 2. Delete or trash the file itself
+        if (existsSync(filePath)) {
+          try {
+            await shell.trashItem(filePath)
+            deleted.push(filePath)
+          } catch {
+            await fs.unlink(filePath)
+            deleted.push(filePath)
+          }
+        } else {
+          deleted.push(filePath)
+        }
+      } catch (err: any) {
+        errors.push(`${filePath}: ${err?.message || String(err)}`)
+      }
+    }
+    return { deleted, errors }
   })
 
   ipcMain.on('media:token', (e) => { e.returnValue = MEDIA_TOKEN })
