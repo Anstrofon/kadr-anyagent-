@@ -48,6 +48,11 @@ uniform float uCGHue;
 uniform float uCGGamma;
 uniform float uCGVignette;
 
+// Three-Way Color Wheels
+uniform vec3 uCGWheelShadows;    // x, y, luma
+uniform vec3 uCGWheelMidtones;   // x, y, luma
+uniform vec3 uCGWheelHighlights; // x, y, luma
+
 out vec4 outColor;
 
 float edgeDist(vec2 a, vec2 b, vec2 p) {
@@ -68,6 +73,18 @@ vec3 hsv2rgb(vec3 col) {
   vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
   vec3 p = abs(fract(col.xxx + K.xyz) * 6.0 - K.www);
   return col.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), col.y);
+}
+
+vec3 wheelTint(vec2 xy, float lumaAdjust) {
+  float r = length(xy);
+  vec3 tint = vec3(0.0);
+  if (r > 0.001) {
+    float angle = atan(xy.y, xy.x);
+    float hue = fract(angle / (2.0 * 3.14159265359) + 1.0);
+    vec3 c = hsv2rgb(vec3(hue, 1.0, 1.0));
+    tint = (c - vec3(0.5)) * min(1.0, r);
+  }
+  return tint + vec3(lumaAdjust * 0.005);
 }
 
 void main() {
@@ -166,6 +183,23 @@ void main() {
     // 5. Gamma
     float gamma = max(0.05, uCGGamma);
     rgb = pow(max(vec3(0.0), rgb), vec3(1.0 / gamma));
+
+    // 5b. Three-Way Color Wheels (Shadows, Midtones, Highlights)
+    if (dot(uCGWheelShadows, uCGWheelShadows) > 0.00001 ||
+        dot(uCGWheelMidtones, uCGWheelMidtones) > 0.00001 ||
+        dot(uCGWheelHighlights, uCGWheelHighlights) > 0.00001) {
+      float curLuma = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+      float wSh = pow(clamp(1.0 - curLuma * 2.0, 0.0, 1.0), 1.5);
+      float wHi = pow(clamp((curLuma - 0.5) * 2.0, 0.0, 1.0), 1.5);
+      float wMid = clamp(1.0 - wSh - wHi, 0.0, 1.0);
+
+      vec3 tSh = wheelTint(uCGWheelShadows.xy, uCGWheelShadows.z);
+      vec3 tMid = wheelTint(uCGWheelMidtones.xy, uCGWheelMidtones.z);
+      vec3 tHi = wheelTint(uCGWheelHighlights.xy, uCGWheelHighlights.z);
+
+      rgb += tSh * wSh * 0.6 + tMid * wMid * 0.6 + tHi * wHi * 0.6;
+      rgb = max(vec3(0.0), rgb);
+    }
 
     // 6. Hue rotation (in degrees)
     if (abs(uCGHue) > 0.01) {
@@ -432,6 +466,9 @@ export class Compositor {
   private uCGHue: WebGLUniformLocation
   private uCGGamma: WebGLUniformLocation
   private uCGVignette: WebGLUniformLocation
+  private uCGWheelShadows: WebGLUniformLocation
+  private uCGWheelMidtones: WebGLUniformLocation
+  private uCGWheelHighlights: WebGLUniformLocation
   private textures = new Map<string, TexEntry>()
   private frame = 0
   width = 0
@@ -474,6 +511,9 @@ export class Compositor {
     this.uCGHue = gl.getUniformLocation(prog, 'uCGHue')!
     this.uCGGamma = gl.getUniformLocation(prog, 'uCGGamma')!
     this.uCGVignette = gl.getUniformLocation(prog, 'uCGVignette')!
+    this.uCGWheelShadows = gl.getUniformLocation(prog, 'uCGWheelShadows')!
+    this.uCGWheelMidtones = gl.getUniformLocation(prog, 'uCGWheelMidtones')!
+    this.uCGWheelHighlights = gl.getUniformLocation(prog, 'uCGWheelHighlights')!
 
     this.vbo = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
@@ -686,6 +726,9 @@ export class Compositor {
       gl.uniform1f(this.uCGHue, cg.hue ?? 0)
       gl.uniform1f(this.uCGGamma, cg.gamma ?? 1.0)
       gl.uniform1f(this.uCGVignette, cg.vignette ?? 0)
+      gl.uniform3f(this.uCGWheelShadows, cg.shadowsX ?? 0, cg.shadowsY ?? 0, cg.shadowsLuma ?? 0)
+      gl.uniform3f(this.uCGWheelMidtones, cg.midtonesX ?? 0, cg.midtonesY ?? 0, cg.midtonesLuma ?? 0)
+      gl.uniform3f(this.uCGWheelHighlights, cg.highlightsX ?? 0, cg.highlightsY ?? 0, cg.highlightsLuma ?? 0)
     } else {
       gl.uniform1i(this.uCGEnabled, 0)
     }

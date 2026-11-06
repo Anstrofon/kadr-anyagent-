@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Anim, Clip, Effect, FragmentInspect, FragmentParamDecl, FxPreset, TextStyle } from '@shared/types'
 import { useEditor, useFxPresets, findClip, uid } from '@/state/store'
 import { GLOW_DEFAULTS } from '@/gl/glow'
@@ -578,6 +578,8 @@ function ColorGradingControls({ clip, fx }: { clip: Clip; fx: Effect }) {
     patchFx({ params: { ...COLOR_GRADE_DEFAULTS } })
   }
 
+  const [tab, setTab] = useState<'wheels' | 'sliders'>('wheels')
+
   return (
     <div className="fx-block cg-block">
       <div className="fx-head">
@@ -633,144 +635,363 @@ function ColorGradingControls({ clip, fx }: { clip: Clip; fx: Effect }) {
         </div>
       </div>
 
-      {/* White Balance */}
-      <div className="cg-group">
-        <div className="cg-group-title">{t('cgWhiteBalance')}</div>
-        <Slider
-          label={t('cgTemperature')}
-          value={num('temperature')}
-          min={-100}
-          max={100}
-          step={1}
-          onChange={(v) => setP('temperature', v)}
-          onReset={() => setP('temperature', 0)}
-        />
-        <Slider
-          label={t('cgTint')}
-          value={num('tint')}
-          min={-100}
-          max={100}
-          step={1}
-          onChange={(v) => setP('tint', v)}
-          onReset={() => setP('tint', 0)}
-        />
+      {/* View Tabs: Color Wheels vs Sliders */}
+      <div className="cg-tab-row">
+        <button
+          type="button"
+          className={`cg-tab-btn${tab === 'wheels' ? ' active' : ''}`}
+          onClick={() => setTab('wheels')}
+        >
+          <Icon name="palette" size={13} /> {t('cgTabWheels')}
+        </button>
+        <button
+          type="button"
+          className={`cg-tab-btn${tab === 'sliders' ? ' active' : ''}`}
+          onClick={() => setTab('sliders')}
+        >
+          <Icon name="sliders" size={13} /> {t('cgTabSliders')}
+        </button>
       </div>
 
-      {/* Tone */}
-      <div className="cg-group">
-        <div className="cg-group-title">{t('cgTone')}</div>
-        <Slider
-          label={t('cgExposure')}
-          value={num('exposure')}
-          min={-3}
-          max={3}
-          step={0.05}
-          unit=" EV"
-          onChange={(v) => setP('exposure', v)}
-          onReset={() => setP('exposure', 0)}
-        />
-        <Slider
-          label={t('cgContrast')}
-          value={num('contrast')}
-          min={-100}
-          max={100}
-          step={1}
-          onChange={(v) => setP('contrast', v)}
-          onReset={() => setP('contrast', 0)}
-        />
-        <Slider
-          label={t('cgHighlights')}
-          value={num('highlights')}
-          min={-100}
-          max={100}
-          step={1}
-          onChange={(v) => setP('highlights', v)}
-          onReset={() => setP('highlights', 0)}
-        />
-        <Slider
-          label={t('cgShadows')}
-          value={num('shadows')}
-          min={-100}
-          max={100}
-          step={1}
-          onChange={(v) => setP('shadows', v)}
-          onReset={() => setP('shadows', 0)}
-        />
-        <Slider
-          label={t('cgWhites')}
-          value={num('whites')}
-          min={-100}
-          max={100}
-          step={1}
-          onChange={(v) => setP('whites', v)}
-          onReset={() => setP('whites', 0)}
-        />
-        <Slider
-          label={t('cgBlacks')}
-          value={num('blacks')}
-          min={-100}
-          max={100}
-          step={1}
-          onChange={(v) => setP('blacks', v)}
-          onReset={() => setP('blacks', 0)}
+      {tab === 'wheels' ? (
+        <div className="cg-wheels-section">
+          <div className="cg-wheels-container">
+            <ColorWheel
+              label={t('cgShadowsWheel')}
+              x={num('shadowsX')}
+              y={num('shadowsY')}
+              luma={num('shadowsLuma')}
+              onChange={(x, y, luma) => {
+                patchFx({ params: { ...fx.params, shadowsX: x, shadowsY: y, shadowsLuma: luma } })
+              }}
+              onReset={() => {
+                st().pushHistory('hEffect')
+                patchFx({ params: { ...fx.params, shadowsX: 0, shadowsY: 0, shadowsLuma: 0 } })
+              }}
+            />
+            <ColorWheel
+              label={t('cgMidtonesWheel')}
+              x={num('midtonesX')}
+              y={num('midtonesY')}
+              luma={num('midtonesLuma')}
+              onChange={(x, y, luma) => {
+                patchFx({ params: { ...fx.params, midtonesX: x, midtonesY: y, midtonesLuma: luma } })
+              }}
+              onReset={() => {
+                st().pushHistory('hEffect')
+                patchFx({ params: { ...fx.params, midtonesX: 0, midtonesY: 0, midtonesLuma: 0 } })
+              }}
+            />
+            <ColorWheel
+              label={t('cgHighlightsWheel')}
+              x={num('highlightsX')}
+              y={num('highlightsY')}
+              luma={num('highlightsLuma')}
+              onChange={(x, y, luma) => {
+                patchFx({ params: { ...fx.params, highlightsX: x, highlightsY: y, highlightsLuma: luma } })
+              }}
+              onReset={() => {
+                st().pushHistory('hEffect')
+                patchFx({ params: { ...fx.params, highlightsX: 0, highlightsY: 0, highlightsLuma: 0 } })
+              }}
+            />
+          </div>
+
+          {/* Quick Tone & Saturation adjustment under wheels */}
+          <div className="cg-group">
+            <Slider
+              label={t('cgExposure')}
+              value={num('exposure')}
+              min={-3}
+              max={3}
+              step={0.05}
+              unit=" EV"
+              onChange={(v) => setP('exposure', v)}
+              onReset={() => setP('exposure', 0)}
+            />
+            <Slider
+              label={t('cgContrast')}
+              value={num('contrast')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('contrast', v)}
+              onReset={() => setP('contrast', 0)}
+            />
+            <Slider
+              label={t('cgSaturation')}
+              value={num('saturation')}
+              min={0}
+              max={200}
+              step={1}
+              unit="%"
+              onChange={(v) => setP('saturation', v)}
+              onReset={() => setP('saturation', 100)}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="cg-sliders-section">
+          {/* White Balance */}
+          <div className="cg-group">
+            <div className="cg-group-title">{t('cgWhiteBalance')}</div>
+            <Slider
+              label={t('cgTemperature')}
+              value={num('temperature')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('temperature', v)}
+              onReset={() => setP('temperature', 0)}
+            />
+            <Slider
+              label={t('cgTint')}
+              value={num('tint')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('tint', v)}
+              onReset={() => setP('tint', 0)}
+            />
+          </div>
+
+          {/* Tone */}
+          <div className="cg-group">
+            <div className="cg-group-title">{t('cgTone')}</div>
+            <Slider
+              label={t('cgExposure')}
+              value={num('exposure')}
+              min={-3}
+              max={3}
+              step={0.05}
+              unit=" EV"
+              onChange={(v) => setP('exposure', v)}
+              onReset={() => setP('exposure', 0)}
+            />
+            <Slider
+              label={t('cgContrast')}
+              value={num('contrast')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('contrast', v)}
+              onReset={() => setP('contrast', 0)}
+            />
+            <Slider
+              label={t('cgHighlights')}
+              value={num('highlights')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('highlights', v)}
+              onReset={() => setP('highlights', 0)}
+            />
+            <Slider
+              label={t('cgShadows')}
+              value={num('shadows')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('shadows', v)}
+              onReset={() => setP('shadows', 0)}
+            />
+            <Slider
+              label={t('cgWhites')}
+              value={num('whites')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('whites', v)}
+              onReset={() => setP('whites', 0)}
+            />
+            <Slider
+              label={t('cgBlacks')}
+              value={num('blacks')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('blacks', v)}
+              onReset={() => setP('blacks', 0)}
+            />
+          </div>
+
+          {/* Color */}
+          <div className="cg-group">
+            <div className="cg-group-title">{t('cgColorSection')}</div>
+            <Slider
+              label={t('cgSaturation')}
+              value={num('saturation')}
+              min={0}
+              max={200}
+              step={1}
+              unit="%"
+              onChange={(v) => setP('saturation', v)}
+              onReset={() => setP('saturation', 100)}
+            />
+            <Slider
+              label={t('cgVibrance')}
+              value={num('vibrance')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('vibrance', v)}
+              onReset={() => setP('vibrance', 0)}
+            />
+            <Slider
+              label={t('cgHue')}
+              value={num('hue')}
+              min={-180}
+              max={180}
+              step={1}
+              unit="°"
+              onChange={(v) => setP('hue', v)}
+              onReset={() => setP('hue', 0)}
+            />
+            <Slider
+              label={t('cgGamma')}
+              value={num('gamma')}
+              min={0.2}
+              max={3.0}
+              step={0.05}
+              onChange={(v) => setP('gamma', v)}
+              onReset={() => setP('gamma', 1.0)}
+            />
+          </div>
+
+          {/* Vignette */}
+          <div className="cg-group">
+            <div className="cg-group-title">{t('cgVignetteSection')}</div>
+            <Slider
+              label={t('cgVignette')}
+              value={num('vignette')}
+              min={-100}
+              max={100}
+              step={1}
+              onChange={(v) => setP('vignette', v)}
+              onReset={() => setP('vignette', 0)}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ColorWheel({
+  label,
+  x,
+  y,
+  luma,
+  onChange,
+  onReset
+}: {
+  label: string
+  x: number
+  y: number
+  luma: number
+  onChange: (x: number, y: number, luma: number) => void
+  onReset: () => void
+}) {
+  const t = useT()
+  const ref = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
+
+  const handlePointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const r = rect.width / 2
+    const cx = rect.left + r
+    const cy = rect.top + r
+    let dx = (e.clientX - cx) / r
+    let dy = (e.clientY - cy) / r
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    if (dist > 1.0) {
+      dx /= dist
+      dy /= dist
+    }
+    onChange(Number(dx.toFixed(3)), Number(dy.toFixed(3)), luma)
+  }
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    isDragging.current = true
+    useEditor.getState().pushHistory('hEffect')
+    handlePointer(e)
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging.current) return
+    handlePointer(e)
+  }
+
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging.current) return
+    isDragging.current = false
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {}
+  }
+
+  // Calculate puck position in percent
+  const leftPct = (x * 0.5 + 0.5) * 100
+  const topPct = (y * 0.5 + 0.5) * 100
+
+  // Calculate puck color preview
+  const dist = Math.min(1.0, Math.sqrt(x * x + y * y))
+  const angle = Math.atan2(y, x)
+  const hueDeg = Math.round(((angle / (2 * Math.PI) + 1.0) % 1.0) * 360)
+  const puckColor = dist < 0.01 ? '#ffffff' : `hsl(${hueDeg}, 100%, 65%)`
+
+  return (
+    <div className="cg-wheel-card">
+      <div className="cg-wheel-head">
+        <span className="cg-wheel-title">{label}</span>
+        <button
+          type="button"
+          className="cg-wheel-reset"
+          title={t('cgResetWheel')}
+          onClick={onReset}
+        >
+          <Icon name="again" size={11} />
+        </button>
+      </div>
+      <div
+        ref={ref}
+        className="cg-wheel-disc"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onDoubleClick={onReset}
+        title="Перетягніть для зміни відтінку; подвійний клік для скидання"
+      >
+        <div className="cg-wheel-crosshair-h" />
+        <div className="cg-wheel-crosshair-v" />
+        <div className="cg-wheel-ring-inner" />
+        <div
+          className="cg-wheel-puck"
+          style={{
+            left: `${leftPct}%`,
+            top: `${topPct}%`,
+            backgroundColor: puckColor,
+            borderColor: dist > 0.05 ? '#ffffff' : '#aaaaaa'
+          }}
         />
       </div>
-
-      {/* Color */}
-      <div className="cg-group">
-        <div className="cg-group-title">{t('cgColorSection')}</div>
-        <Slider
-          label={t('cgSaturation')}
-          value={num('saturation')}
-          min={0}
-          max={200}
-          step={1}
-          unit="%"
-          onChange={(v) => setP('saturation', v)}
-          onReset={() => setP('saturation', 100)}
-        />
-        <Slider
-          label={t('cgVibrance')}
-          value={num('vibrance')}
+      <div className="cg-wheel-luma">
+        <span className="dim">{t('cgWheelLuma')}</span>
+        <input
+          type="range"
           min={-100}
           max={100}
           step={1}
-          onChange={(v) => setP('vibrance', v)}
-          onReset={() => setP('vibrance', 0)}
+          value={luma}
+          onPointerDown={() => useEditor.getState().pushHistory('hEffect')}
+          onChange={(e) => onChange(x, y, Number(e.target.value))}
+          onDoubleClick={() => onChange(x, y, 0)}
+          title="Подвійний клік для скидання"
         />
-        <Slider
-          label={t('cgHue')}
-          value={num('hue')}
-          min={-180}
-          max={180}
-          step={1}
-          unit="°"
-          onChange={(v) => setP('hue', v)}
-          onReset={() => setP('hue', 0)}
-        />
-        <Slider
-          label={t('cgGamma')}
-          value={num('gamma')}
-          min={0.2}
-          max={3.0}
-          step={0.05}
-          onChange={(v) => setP('gamma', v)}
-          onReset={() => setP('gamma', 1.0)}
-        />
-      </div>
-
-      {/* Vignette */}
-      <div className="cg-group">
-        <div className="cg-group-title">{t('cgVignetteSection')}</div>
-        <Slider
-          label={t('cgVignette')}
-          value={num('vignette')}
-          min={-100}
-          max={100}
-          step={1}
-          onChange={(v) => setP('vignette', v)}
-          onReset={() => setP('vignette', 0)}
-        />
+        <span className="fx-val" onDoubleClick={() => onChange(x, y, 0)}>{luma}</span>
       </div>
     </div>
   )

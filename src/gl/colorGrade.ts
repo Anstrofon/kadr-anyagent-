@@ -1,9 +1,10 @@
 // Professional Color Grading (Lumetri Color style) engine for Kadr.
 // Supports White Balance (Temperature, Tint), Tone (Exposure, Contrast,
 // Highlights, Shadows, Whites, Blacks), Color (Saturation, Vibrance, Hue, Gamma),
-// and Vignette.
+// Vignette, and Three-Way Color Wheels (Shadows, Midtones, Highlights).
 
 export interface ColorGradeParams {
+  // Sliders
   temperature: number // -100 .. 100 (cool -> warm)
   tint: number        // -100 .. 100 (green -> magenta)
   exposure: number    // -3.0 .. 3.0 (EV stops)
@@ -17,6 +18,17 @@ export interface ColorGradeParams {
   hue: number         // -180 .. 180 (degrees)
   gamma: number       // 0.2 .. 3.0 (default 1.0)
   vignette: number    // -100 .. 100
+
+  // Three-Way Color Wheels (normalized -1.0 .. 1.0, and luma -100 .. 100)
+  shadowsX?: number
+  shadowsY?: number
+  shadowsLuma?: number
+  midtonesX?: number
+  midtonesY?: number
+  midtonesLuma?: number
+  highlightsX?: number
+  highlightsY?: number
+  highlightsLuma?: number
 }
 
 export const COLOR_GRADE_DEFAULTS: ColorGradeParams = {
@@ -32,7 +44,16 @@ export const COLOR_GRADE_DEFAULTS: ColorGradeParams = {
   vibrance: 0,
   hue: 0,
   gamma: 1.0,
-  vignette: 0
+  vignette: 0,
+  shadowsX: 0,
+  shadowsY: 0,
+  shadowsLuma: 0,
+  midtonesX: 0,
+  midtonesY: 0,
+  midtonesLuma: 0,
+  highlightsX: 0,
+  highlightsY: 0,
+  highlightsLuma: 0
 }
 
 export interface ColorPreset {
@@ -60,7 +81,16 @@ export const COLOR_LOOK_PRESETS: ColorPreset[] = [
       vibrance: 25,
       hue: 0,
       gamma: 0.95,
-      vignette: 20
+      vignette: 20,
+      shadowsX: -0.32,
+      shadowsY: 0.05,
+      shadowsLuma: -8,
+      midtonesX: 0.08,
+      midtonesY: 0.04,
+      midtonesLuma: 0,
+      highlightsX: 0.32,
+      highlightsY: -0.12,
+      highlightsLuma: 8
     }
   },
   {
@@ -80,7 +110,16 @@ export const COLOR_LOOK_PRESETS: ColorPreset[] = [
       vibrance: -8,
       hue: 4,
       gamma: 1.06,
-      vignette: 28
+      vignette: 28,
+      shadowsX: 0.15,
+      shadowsY: -0.05,
+      shadowsLuma: 10,
+      midtonesX: 0.22,
+      midtonesY: -0.1,
+      midtonesLuma: 4,
+      highlightsX: 0.18,
+      highlightsY: 0.04,
+      highlightsLuma: -6
     }
   },
   {
@@ -100,7 +139,16 @@ export const COLOR_LOOK_PRESETS: ColorPreset[] = [
       vibrance: -15,
       hue: -4,
       gamma: 0.92,
-      vignette: 35
+      vignette: 35,
+      shadowsX: -0.28,
+      shadowsY: 0.22,
+      shadowsLuma: -15,
+      midtonesX: -0.16,
+      midtonesY: 0.14,
+      midtonesLuma: -5,
+      highlightsX: -0.1,
+      highlightsY: 0.05,
+      highlightsLuma: 5
     }
   },
   {
@@ -120,7 +168,16 @@ export const COLOR_LOOK_PRESETS: ColorPreset[] = [
       vibrance: 40,
       hue: 12,
       gamma: 0.92,
-      vignette: 30
+      vignette: 30,
+      shadowsX: -0.35,
+      shadowsY: 0.22,
+      shadowsLuma: -8,
+      midtonesX: 0.12,
+      midtonesY: 0.32,
+      midtonesLuma: 6,
+      highlightsX: 0.35,
+      highlightsY: 0.28,
+      highlightsLuma: 12
     }
   },
   {
@@ -140,7 +197,16 @@ export const COLOR_LOOK_PRESETS: ColorPreset[] = [
       vibrance: 0,
       hue: 0,
       gamma: 1.0,
-      vignette: 18
+      vignette: 18,
+      shadowsX: 0,
+      shadowsY: 0,
+      shadowsLuma: -8,
+      midtonesX: 0,
+      midtonesY: 0,
+      midtonesLuma: 0,
+      highlightsX: 0,
+      highlightsY: 0,
+      highlightsLuma: 8
     }
   },
   {
@@ -160,7 +226,16 @@ export const COLOR_LOOK_PRESETS: ColorPreset[] = [
       vibrance: -6,
       hue: 0,
       gamma: 1.08,
-      vignette: 15
+      vignette: 15,
+      shadowsX: 0.08,
+      shadowsY: 0.06,
+      shadowsLuma: 14,
+      midtonesX: 0.05,
+      midtonesY: -0.04,
+      midtonesLuma: 0,
+      highlightsX: -0.05,
+      highlightsY: -0.05,
+      highlightsLuma: -8
     }
   },
   {
@@ -180,7 +255,16 @@ export const COLOR_LOOK_PRESETS: ColorPreset[] = [
       vibrance: 28,
       hue: -4,
       gamma: 0.96,
-      vignette: 18
+      vignette: 18,
+      shadowsX: 0.12,
+      shadowsY: 0.0,
+      shadowsLuma: -4,
+      midtonesX: 0.28,
+      midtonesY: -0.1,
+      midtonesLuma: 4,
+      highlightsX: 0.38,
+      highlightsY: -0.14,
+      highlightsLuma: 10
     }
   },
   {
@@ -200,7 +284,16 @@ export const COLOR_LOOK_PRESETS: ColorPreset[] = [
       vibrance: 32,
       hue: 8,
       gamma: 0.88,
-      vignette: 40
+      vignette: 40,
+      shadowsX: -0.18,
+      shadowsY: 0.32,
+      shadowsLuma: -18,
+      midtonesX: 0.32,
+      midtonesY: 0.12,
+      midtonesLuma: 4,
+      highlightsX: 0.28,
+      highlightsY: -0.18,
+      highlightsLuma: 14
     }
   }
 ]
