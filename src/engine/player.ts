@@ -1,6 +1,7 @@
 import type { Project, Clip, Track, MediaAsset } from '@shared/types'
 import { Compositor, type LayerDraw } from '@/gl/compositor'
 import { glowParams } from '@/gl/glow'
+import { type ColorGradeParams } from '@/gl/colorGrade'
 import { getCaptureFrame } from './fragmentCapture'
 import { chromiumCanDecode } from './codecs'
 import { evalAnim } from './anim'
@@ -476,7 +477,11 @@ function drawClipLayer(
             featherOut: Math.max(0, evalAnim(ms.featherOut, rel)),
             invert: ms.invert
           }))
-        : undefined
+        : undefined,
+      colorGrade: (() => {
+        const fx = (clip.effects ?? []).find((e) => e.enabled && e.type === 'colorGrading')
+        return fx ? (fx.params as unknown as ColorGradeParams) : undefined
+      })()
     }
     if (common.opacity <= 0.001) return
     // enabled outer glows render the layer through the effect pass; smoke is

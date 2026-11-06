@@ -1303,6 +1303,66 @@ div.tr-error {
   font-size: var(--fz-sm);
 }
 
+.fx-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.fx-action-btn {
+  background: none;
+  border: none;
+  color: var(--c-text-3);
+  cursor: pointer;
+  padding: 2px 4px;
+  min-height: 22px;
+  border-radius: var(--r1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.fx-action-btn:hover:not(:disabled) {
+  background: var(--c-hover);
+  color: var(--c-text-1);
+}
+.cg-block {
+  padding-bottom: var(--s3);
+}
+.cg-group {
+  margin-top: var(--s3);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--c-line-1);
+}
+.cg-group-title {
+  font-size: var(--fz-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-2);
+  margin-bottom: var(--s2);
+}
+.cg-presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+.cg-preset-pill {
+  background: var(--c-bg-2);
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r3);
+  padding: 2px 8px;
+  font-size: var(--fz-xs);
+  color: var(--c-text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+}
+.cg-preset-pill:hover:not(:disabled) {
+  background: var(--c-accent-soft);
+  border-color: var(--c-accent);
+  color: var(--c-text-1);
+}
+
 /* ===========================================================================
    Timeline
    =========================================================================== */

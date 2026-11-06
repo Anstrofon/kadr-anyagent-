@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Anim, Clip, Effect, FragmentInspect, FragmentParamDecl, FxPreset, TextStyle } from '@shared/types'
 import { useEditor, useFxPresets, findClip, uid } from '@/state/store'
 import { GLOW_DEFAULTS } from '@/gl/glow'
+import { COLOR_GRADE_DEFAULTS, COLOR_LOOK_PRESETS, type ColorGradeParams } from '@/gl/colorGrade'
 import { useT } from '@/i18n'
 import { bakeAudio, bakeState, bakePlan } from '@/engine/audioReact'
 import { audibleTracksInRange } from '@/engine/subtitles'
@@ -296,7 +297,7 @@ function FragmentParamsSection({ clip }: { clip: Clip }) {
 }
 
 function Slider({
-  label, value, min, max, step, onChange
+  label, value, min, max, step, onChange, onReset, unit = ''
 }: {
   label: string
   value: number
@@ -304,10 +305,12 @@ function Slider({
   max: number
   step: number
   onChange: (v: number) => void
+  onReset?: () => void
+  unit?: string
 }) {
   return (
     <label className="insp-field fx-slider">
-      <span>{label}</span>
+      <span onDoubleClick={onReset} title={onReset ? 'Подвійний клік для скидання' : undefined}>{label}</span>
       <input
         type="range"
         value={value}
@@ -317,7 +320,9 @@ function Slider({
         onPointerDown={() => useEditor.getState().pushHistory('hEffect')}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      <span className="fx-val">{Number(value.toFixed(2))}</span>
+      <span className="fx-val" onDoubleClick={onReset} title={onReset ? 'Подвійний клік для скидання' : undefined}>
+        {Number(value.toFixed(2))}{unit}
+      </span>
     </label>
   )
 }
@@ -329,6 +334,10 @@ function EffectsSection({ clip }: { clip: Clip }) {
   const fxPresets = useFxPresets((s) => s.presets)
   const update = (effects: Effect[]) => useEditor.getState().updateClip(clip.id, { effects })
   const effects = clip.effects ?? []
+  const addColorGrading = () => {
+    useEditor.getState().pushHistory('hEffect')
+    update([...effects, { id: uid(), type: 'colorGrading', enabled: true, params: { ...COLOR_GRADE_DEFAULTS } }])
+  }
   const addGlow = () => {
     useEditor.getState().pushHistory('hEffect')
     update([...effects, { id: uid(), type: 'glow', enabled: true, params: { ...GLOW_DEFAULTS } }])
@@ -377,11 +386,18 @@ function EffectsSection({ clip }: { clip: Clip }) {
         </button>
       </div>
       {effects.map((fx) =>
-        fx.type === 'glow' ? (
+        fx.type === 'colorGrading' ? (
+          <ColorGradingControls key={fx.id} clip={clip} fx={fx} />
+        ) : fx.type === 'glow' ? (
           <GlowControls key={fx.id} clip={clip} fx={fx} />
         ) : fx.type === 'blur' ? (
           <BlurControls key={fx.id} clip={clip} fx={fx} />
         ) : null
+      )}
+      {!effects.some((e) => e.type === 'colorGrading') && (
+        <button className="fx-add" data-act="add-color-grading" onClick={addColorGrading}>
+          <Icon name="plus" size={13} /> <Icon name="palette" size={14} /> {t('fxColorGrading')}
+        </button>
       )}
       {!effects.some((e) => e.type === 'glow') && (
         <button className="fx-add" data-act="add-glow" onClick={addGlow}>
@@ -532,3 +548,231 @@ function GlowControls({ clip, fx }: { clip: Clip; fx: Effect }) {
     </div>
   )
 }
+
+function ColorGradingControls({ clip, fx }: { clip: Clip; fx: Effect }) {
+  const t = useT()
+  const st = () => useEditor.getState()
+  const patchFx = (patch: Partial<Effect>) =>
+    st().updateClip(clip.id, {
+      effects: (clip.effects ?? []).map((e) => (e.id === fx.id ? { ...e, ...patch } : e))
+    })
+  const setP = (key: keyof ColorGradeParams, v: number) =>
+    patchFx({ params: { ...fx.params, [key]: v } })
+  const num = (key: keyof ColorGradeParams) => {
+    const v = fx.params[key]
+    return typeof v === 'number' ? v : COLOR_GRADE_DEFAULTS[key]
+  }
+
+  const applyLook = (lookParams: Partial<ColorGradeParams>) => {
+    st().pushHistory('hEffect')
+    patchFx({
+      params: {
+        ...COLOR_GRADE_DEFAULTS,
+        ...lookParams
+      }
+    })
+  }
+
+  const resetAll = () => {
+    st().pushHistory('hEffect')
+    patchFx({ params: { ...COLOR_GRADE_DEFAULTS } })
+  }
+
+  return (
+    <div className="fx-block cg-block">
+      <div className="fx-head">
+        <label>
+          <input
+            type="checkbox"
+            checked={fx.enabled}
+            onChange={(e) => {
+              st().pushHistory('hEffect')
+              patchFx({ enabled: e.target.checked })
+            }}
+          />
+          <span><Icon name="palette" size={14} /> {t('fxColorGrading')}</span>
+        </label>
+        <div className="fx-head-actions">
+          <button
+            className="fx-action-btn"
+            title={t('cgReset')}
+            aria-label={t('cgReset')}
+            onClick={resetAll}
+          >
+            <Icon name="again" size={13} />
+          </button>
+          <button
+            className="fx-del"
+            title={t('fxDelete')}
+            onClick={() => {
+              st().pushHistory('hEffect')
+              st().updateClip(clip.id, {
+                effects: (clip.effects ?? []).filter((e) => e.id !== fx.id)
+              })
+            }}
+            aria-label={t('fxDelete')}
+          >
+            <Icon name="trash" size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Creative Looks / Presets */}
+      <div className="cg-group">
+        <div className="cg-group-title dim">{t('cgLooks')}</div>
+        <div className="cg-presets-row">
+          {COLOR_LOOK_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              className="cg-preset-pill"
+              onClick={() => applyLook(p.params)}
+            >
+              {t(p.nameKey as Parameters<typeof t>[0]) || p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* White Balance */}
+      <div className="cg-group">
+        <div className="cg-group-title">{t('cgWhiteBalance')}</div>
+        <Slider
+          label={t('cgTemperature')}
+          value={num('temperature')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('temperature', v)}
+          onReset={() => setP('temperature', 0)}
+        />
+        <Slider
+          label={t('cgTint')}
+          value={num('tint')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('tint', v)}
+          onReset={() => setP('tint', 0)}
+        />
+      </div>
+
+      {/* Tone */}
+      <div className="cg-group">
+        <div className="cg-group-title">{t('cgTone')}</div>
+        <Slider
+          label={t('cgExposure')}
+          value={num('exposure')}
+          min={-3}
+          max={3}
+          step={0.05}
+          unit=" EV"
+          onChange={(v) => setP('exposure', v)}
+          onReset={() => setP('exposure', 0)}
+        />
+        <Slider
+          label={t('cgContrast')}
+          value={num('contrast')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('contrast', v)}
+          onReset={() => setP('contrast', 0)}
+        />
+        <Slider
+          label={t('cgHighlights')}
+          value={num('highlights')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('highlights', v)}
+          onReset={() => setP('highlights', 0)}
+        />
+        <Slider
+          label={t('cgShadows')}
+          value={num('shadows')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('shadows', v)}
+          onReset={() => setP('shadows', 0)}
+        />
+        <Slider
+          label={t('cgWhites')}
+          value={num('whites')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('whites', v)}
+          onReset={() => setP('whites', 0)}
+        />
+        <Slider
+          label={t('cgBlacks')}
+          value={num('blacks')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('blacks', v)}
+          onReset={() => setP('blacks', 0)}
+        />
+      </div>
+
+      {/* Color */}
+      <div className="cg-group">
+        <div className="cg-group-title">{t('cgColorSection')}</div>
+        <Slider
+          label={t('cgSaturation')}
+          value={num('saturation')}
+          min={0}
+          max={200}
+          step={1}
+          unit="%"
+          onChange={(v) => setP('saturation', v)}
+          onReset={() => setP('saturation', 100)}
+        />
+        <Slider
+          label={t('cgVibrance')}
+          value={num('vibrance')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('vibrance', v)}
+          onReset={() => setP('vibrance', 0)}
+        />
+        <Slider
+          label={t('cgHue')}
+          value={num('hue')}
+          min={-180}
+          max={180}
+          step={1}
+          unit="°"
+          onChange={(v) => setP('hue', v)}
+          onReset={() => setP('hue', 0)}
+        />
+        <Slider
+          label={t('cgGamma')}
+          value={num('gamma')}
+          min={0.2}
+          max={3.0}
+          step={0.05}
+          onChange={(v) => setP('gamma', v)}
+          onReset={() => setP('gamma', 1.0)}
+        />
+      </div>
+
+      {/* Vignette */}
+      <div className="cg-group">
+        <div className="cg-group-title">{t('cgVignetteSection')}</div>
+        <Slider
+          label={t('cgVignette')}
+          value={num('vignette')}
+          min={-100}
+          max={100}
+          step={1}
+          onChange={(v) => setP('vignette', v)}
+          onReset={() => setP('vignette', 0)}
+        />
+      </div>
+    </div>
+  )
+}
+

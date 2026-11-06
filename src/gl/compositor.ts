@@ -3,6 +3,7 @@
 import { transitionGlsl } from './transitions'
 import { edgeGlsl } from './edges'
 import { GLOW_FIELD_FS, GLOW_FS, type GlowParams } from './glow'
+import { type ColorGradeParams } from './colorGrade'
 import { logError } from '@/engine/log'
 
 const VS = `#version 300 es
@@ -16,7 +17,7 @@ void main() {
 }`
 
 const FS = `#version 300 es
-precision mediump float;
+precision highp float;
 const int MAX_SHAPES = 8;
 in vec2 vUV;
 uniform sampler2D uTex;
@@ -30,11 +31,43 @@ uniform int uShapeType[MAX_SHAPES];    // 1 rect, 2 ellipse, 3 triangle
 uniform vec4 uShapeRect[MAX_SHAPES];   // cx, cy, halfW, halfH in UV
 uniform vec3 uShapeFeather[MAX_SHAPES];// featherIn, featherOut, invert flag
 uniform float uAspect;                 // layer width/height (aspect-correct distances)
+
+// Color grading (Lumetri Color style)
+uniform int uCGEnabled;
+uniform float uCGTemp;
+uniform float uCGTint;
+uniform float uCGExposure;
+uniform float uCGContrast;
+uniform float uCGHighlights;
+uniform float uCGShadows;
+uniform float uCGWhites;
+uniform float uCGBlacks;
+uniform float uCGSaturation;
+uniform float uCGVibrance;
+uniform float uCGHue;
+uniform float uCGGamma;
+uniform float uCGVignette;
+
 out vec4 outColor;
 
 float edgeDist(vec2 a, vec2 b, vec2 p) {
   vec2 e = b - a;
   return (e.x * (p.y - a.y) - e.y * (p.x - a.x)) / length(e);
+}
+
+vec3 rgb2hsv(vec3 col) {
+  vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+  vec4 p = mix(vec4(col.bg, K.wz), vec4(col.gb, K.xy), step(col.b, col.g));
+  vec4 q = mix(vec4(p.xyw, col.r), vec4(col.r, p.yzx), step(p.x, col.r));
+  float d = q.x - min(q.w, q.y);
+  float e = 1.0e-10;
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+vec3 hsv2rgb(vec3 col) {
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(col.xxx + K.xyz) * 6.0 - K.www);
+  return col.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), col.y);
 }
 
 void main() {
@@ -90,6 +123,86 @@ void main() {
       }
     }
     alpha *= (hasKeep ? keep : 1.0) * cut;
+  }
+
+  if (uCGEnabled == 1) {
+    vec3 rgb = c.rgb;
+
+    // 1. White balance (temperature & tint)
+    float tWarm = uCGTemp * 0.01;
+    rgb.r += tWarm * 0.22;
+    rgb.g += tWarm * 0.04;
+    rgb.b -= tWarm * 0.22;
+
+    float tTint = uCGTint * 0.01;
+    rgb.r += tTint * 0.10;
+    rgb.g -= tTint * 0.18;
+    rgb.b += tTint * 0.10;
+    rgb = max(vec3(0.0), rgb);
+
+    // 2. Exposure (optical EV stop scale)
+    rgb *= exp2(uCGExposure);
+
+    // 3. Tonal zones (Highlights, Shadows, Whites, Blacks)
+    float luma = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+    float wShadows = 1.0 - smoothstep(0.0, 0.55, luma);
+    float wHighlights = smoothstep(0.45, 1.0, luma);
+    float wBlacks = pow(max(0.0, 1.0 - luma * 3.2), 2.0);
+    float wWhites = pow(max(0.0, (luma - 0.60) / 0.40), 2.0);
+
+    float deltaTone = (uCGShadows * 0.01) * wShadows * 0.35 +
+                      (uCGHighlights * 0.01) * wHighlights * 0.35 +
+                      (uCGBlacks * 0.01) * wBlacks * 0.25 +
+                      (uCGWhites * 0.01) * wWhites * 0.25;
+    rgb = max(vec3(0.0), rgb + deltaTone);
+
+    // 4. Contrast (S-curve around midpoint 0.5)
+    float cScale = 1.0 + (uCGContrast * 0.01);
+    if (cScale >= 0.0) {
+      rgb = (rgb - 0.5) * cScale + 0.5;
+      rgb = max(vec3(0.0), rgb);
+    }
+
+    // 5. Gamma
+    float gamma = max(0.05, uCGGamma);
+    rgb = pow(max(vec3(0.0), rgb), vec3(1.0 / gamma));
+
+    // 6. Hue rotation (in degrees)
+    if (abs(uCGHue) > 0.01) {
+      vec3 hsv = rgb2hsv(rgb);
+      hsv.x = fract(hsv.x + uCGHue / 360.0);
+      rgb = hsv2rgb(hsv);
+    }
+
+    // 7. Vibrance (smart saturation for low-saturated tones)
+    if (abs(uCGVibrance) > 0.01) {
+      float maxC = max(rgb.r, max(rgb.g, rgb.b));
+      float minC = min(rgb.r, min(rgb.g, rgb.b));
+      float curSat = maxC > 0.0001 ? (maxC - minC) / maxC : 0.0;
+      float vibScale = 1.0 + (uCGVibrance * 0.01) * (1.0 - curSat);
+      float lumV = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+      rgb = mix(vec3(lumV), rgb, max(0.0, vibScale));
+    }
+
+    // 8. Saturation
+    float satScale = uCGSaturation * 0.01;
+    float lumS = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+    rgb = mix(vec3(lumS), rgb, max(0.0, satScale));
+
+    // 9. Vignette
+    if (abs(uCGVignette) > 0.01) {
+      vec2 vCoord = (vUV - 0.5) * vec2(uAspect, 1.0);
+      float dist = length(vCoord);
+      float vigFactor = smoothstep(0.2, 0.85, dist);
+      float vigAmt = uCGVignette * 0.01;
+      if (vigAmt > 0.0) {
+        rgb *= (1.0 - vigAmt * vigFactor);
+      } else {
+        rgb = mix(rgb, vec3(1.0), -vigAmt * vigFactor * 0.6);
+      }
+    }
+
+    c.rgb = clamp(rgb, 0.0, 1.0);
   }
 
   outColor = vec4(c.rgb, alpha);
@@ -224,6 +337,8 @@ export interface LayerDraw {
   /** cut fractions [left, top, right, bottom], 0..1 */
   crop?: [number, number, number, number]
   shapes?: ShapeUniform[]
+  /** color correction / grading (Lumetri style) */
+  colorGrade?: ColorGradeParams
 }
 
 export interface ShapeUniform {
@@ -303,6 +418,20 @@ export class Compositor {
   private uShapeRect: WebGLUniformLocation
   private uShapeFeather: WebGLUniformLocation
   private uAspect: WebGLUniformLocation
+  private uCGEnabled: WebGLUniformLocation
+  private uCGTemp: WebGLUniformLocation
+  private uCGTint: WebGLUniformLocation
+  private uCGExposure: WebGLUniformLocation
+  private uCGContrast: WebGLUniformLocation
+  private uCGHighlights: WebGLUniformLocation
+  private uCGShadows: WebGLUniformLocation
+  private uCGWhites: WebGLUniformLocation
+  private uCGBlacks: WebGLUniformLocation
+  private uCGSaturation: WebGLUniformLocation
+  private uCGVibrance: WebGLUniformLocation
+  private uCGHue: WebGLUniformLocation
+  private uCGGamma: WebGLUniformLocation
+  private uCGVignette: WebGLUniformLocation
   private textures = new Map<string, TexEntry>()
   private frame = 0
   width = 0
@@ -331,6 +460,20 @@ export class Compositor {
     this.uShapeRect = gl.getUniformLocation(prog, 'uShapeRect[0]')!
     this.uShapeFeather = gl.getUniformLocation(prog, 'uShapeFeather[0]')!
     this.uAspect = gl.getUniformLocation(prog, 'uAspect')!
+    this.uCGEnabled = gl.getUniformLocation(prog, 'uCGEnabled')!
+    this.uCGTemp = gl.getUniformLocation(prog, 'uCGTemp')!
+    this.uCGTint = gl.getUniformLocation(prog, 'uCGTint')!
+    this.uCGExposure = gl.getUniformLocation(prog, 'uCGExposure')!
+    this.uCGContrast = gl.getUniformLocation(prog, 'uCGContrast')!
+    this.uCGHighlights = gl.getUniformLocation(prog, 'uCGHighlights')!
+    this.uCGShadows = gl.getUniformLocation(prog, 'uCGShadows')!
+    this.uCGWhites = gl.getUniformLocation(prog, 'uCGWhites')!
+    this.uCGBlacks = gl.getUniformLocation(prog, 'uCGBlacks')!
+    this.uCGSaturation = gl.getUniformLocation(prog, 'uCGSaturation')!
+    this.uCGVibrance = gl.getUniformLocation(prog, 'uCGVibrance')!
+    this.uCGHue = gl.getUniformLocation(prog, 'uCGHue')!
+    this.uCGGamma = gl.getUniformLocation(prog, 'uCGGamma')!
+    this.uCGVignette = gl.getUniformLocation(prog, 'uCGVignette')!
 
     this.vbo = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
@@ -526,6 +669,25 @@ export class Compositor {
       gl.uniform4fv(this.uShapeRect, rects)
       gl.uniform3fv(this.uShapeFeather, feathers)
       gl.uniform1f(this.uAspect, l.srcWidth / Math.max(1, l.srcHeight))
+    }
+    const cg = l.colorGrade
+    if (cg) {
+      gl.uniform1i(this.uCGEnabled, 1)
+      gl.uniform1f(this.uCGTemp, cg.temperature ?? 0)
+      gl.uniform1f(this.uCGTint, cg.tint ?? 0)
+      gl.uniform1f(this.uCGExposure, cg.exposure ?? 0)
+      gl.uniform1f(this.uCGContrast, cg.contrast ?? 0)
+      gl.uniform1f(this.uCGHighlights, cg.highlights ?? 0)
+      gl.uniform1f(this.uCGShadows, cg.shadows ?? 0)
+      gl.uniform1f(this.uCGWhites, cg.whites ?? 0)
+      gl.uniform1f(this.uCGBlacks, cg.blacks ?? 0)
+      gl.uniform1f(this.uCGSaturation, cg.saturation ?? 100)
+      gl.uniform1f(this.uCGVibrance, cg.vibrance ?? 0)
+      gl.uniform1f(this.uCGHue, cg.hue ?? 0)
+      gl.uniform1f(this.uCGGamma, cg.gamma ?? 1.0)
+      gl.uniform1f(this.uCGVignette, cg.vignette ?? 0)
+    } else {
+      gl.uniform1i(this.uCGEnabled, 0)
     }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
   }
