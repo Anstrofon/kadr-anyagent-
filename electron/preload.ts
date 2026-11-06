@@ -259,7 +259,10 @@ const api: KadrApi = {
   },
 
   imageSearch: (opts) => ipcRenderer.invoke('image:search', opts),
-  imageDownload: (opts) => ipcRenderer.invoke('image:download', opts)
+  imageDownload: (opts) => ipcRenderer.invoke('image:download', opts),
+
+  voiceoverSave: (projectDir, baseName, data) =>
+    ipcRenderer.invoke('voiceover:save', projectDir, baseName, data)
 }
 
 // contextIsolation is off (see main.ts: export frames pass by reference),

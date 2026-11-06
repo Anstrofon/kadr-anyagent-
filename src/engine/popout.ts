@@ -133,7 +133,7 @@ export function openPreviewWindow(): boolean {
     doc.write('<!doctype html><html><head></head><body></body></html>')
     doc.close()
   }
-  doc.documentElement.lang = document.documentElement.lang || 'ru'
+  doc.documentElement.lang = document.documentElement.lang || 'uk'
   doc.title = tr('popoutTitle')
   doc.body.className = 'kadr-popout'
   stopStyles = mirrorStyles(doc)

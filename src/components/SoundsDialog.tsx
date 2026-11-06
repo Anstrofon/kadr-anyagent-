@@ -221,7 +221,7 @@ export function SoundsDialog() {
                 {rowButtons(m.id, m.path)}
                 <span className="snd-name">
                   {m.name}
-                  <span className="dim snd-desc">{lang === 'ru' ? m.descRu : m.descEn}</span>
+                  <span className="dim snd-desc">{lang === 'en' ? m.descEn : (m.descRu || m.descEn)}</span>
                 </span>
                 <span className="snd-dur dim">{fmt(m.duration)}</span>
                 <span className="snd-tags"><span className="snd-tag">{Math.round(m.tempo)} BPM</span></span>

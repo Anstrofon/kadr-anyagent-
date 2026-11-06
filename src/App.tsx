@@ -16,6 +16,7 @@ import { SoundsDialog } from './components/SoundsDialog'
 import { TtsSettingsDialog, SpeakDialog, refreshTtsKey } from './components/TtsDialog'
 import { DefectsDialog } from './components/DefectsDialog'
 import { MotionTrackerDialog } from './components/MotionTrackerDialog'
+import { VoiceRecorderDialog, useVoiceRecorderUi } from './components/VoiceRecorderDialog'
 import { DebugPanel } from './components/DebugPanel'
 import { StoragePanel } from './components/StoragePanel'
 import { Icon } from './components/icons'
@@ -198,6 +199,9 @@ export default function App() {
         s.toggleLinkSelection()
       } else if (e.code === 'KeyM' && !e.ctrlKey && !e.altKey) {
         s.addMarker(s.playhead)
+      } else if (e.code === 'KeyR' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault()
+        useVoiceRecorderUi.getState().openRecorder()
       } else if (e.code === 'ArrowLeft') {
         // step the playhead by frames; preventDefault keeps the timeline from scrolling
         e.preventDefault()
@@ -384,6 +388,7 @@ export default function App() {
       <SpeakDialog />
       <DefectsDialog />
       <MotionTrackerDialog />
+      <VoiceRecorderDialog />
       {agentOpen && <AgentPanel onClose={() => setAgentOpen(false)} />}
       {debugOpen && <DebugPanel onClose={() => setDebugOpen(false)} />}
       {storageOpen && <StoragePanel onClose={() => setStorageOpen(false)} />}

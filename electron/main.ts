@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, net, clipboard } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, protocol, net, clipboard, session } from 'electron'
 import { join, dirname, basename } from 'path'
 import { promises as fs, createReadStream, statSync, existsSync, appendFileSync } from 'fs'
 import { tmpdir } from 'os'
@@ -154,6 +154,15 @@ function createWindow() {
       app.exit(1)
     }
   })
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'media') return callback(true)
+    callback(false)
+  })
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    if (permission === 'media') return true
+    return false
+  })
+
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
@@ -790,6 +799,28 @@ function registerIpc() {
       } catch { break }
     }
     await fs.writeFile(out, Buffer.from(png))
+    return out
+  })
+
+  // voiceover: WAV recording from microphone
+  ipcMain.handle('voiceover:save', async (_e, projectDir: string | null, baseName: string, data: Uint8Array) => {
+    if (!data?.byteLength) throw new Error('empty voiceover data')
+    let fallback = app.getPath('downloads')
+    if (fallback === app.getPath('home')) {
+      const dl = join(app.getPath('home'), 'Downloads')
+      try { await fs.access(dl); fallback = dl } catch { /* keep home */ }
+    }
+    const target = projectDir ? join(projectDir, 'voiceover') : join(fallback, 'kadr-voiceover')
+    await fs.mkdir(target, { recursive: true })
+    const safe = baseName.replace(/[^\p{L}\p{N} ._-]/gu, '_').slice(0, 120) || 'voiceover'
+    let out = join(target, `${safe}.wav`)
+    for (let i = 1; i < 1000; i++) {
+      try {
+        await fs.access(out)
+        out = join(target, `${safe}_${i}.wav`)
+      } catch { break }
+    }
+    await fs.writeFile(out, Buffer.from(data))
     return out
   })
 

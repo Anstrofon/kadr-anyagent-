@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useEditor } from '@/state/store'
 import { evalAnim } from '@/engine/anim'
 import { usePopout } from '@/engine/popout'
+import { useT } from '@/i18n'
 
 /**
  * Mouse control for the selected remotion clip in the preview: drag the
@@ -10,6 +11,7 @@ import { usePopout } from '@/engine/popout'
  * and the pixel-capture mode, and matches the final render exactly.
  */
 export function FragmentGizmo({ canvas }: { canvas: React.RefObject<HTMLCanvasElement> }) {
+  const t = useT()
   // the preview may be detached into a window of its own — see the observer below
   const popped = usePopout((s) => s.win)
   const selId = useEditor((s) => s.selection[0])
@@ -146,7 +148,7 @@ export function FragmentGizmo({ canvas }: { canvas: React.RefObject<HTMLCanvasEl
       onPointerMove={onMove}
       onPointerUp={onUp}
       onWheel={onWheel}
-      title="Перетащите — позиция · колесо/уголок — размер"
+      title={t('gizmoHint')}
     >
       <div
         className="frag-gizmo-handle"

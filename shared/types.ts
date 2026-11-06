@@ -1331,6 +1331,9 @@ export interface KadrApi {
   /** Image Search integration (Web, Pinterest, etc.) */
   imageSearch(opts: ImageSearchOptions): Promise<{ items: ImageSearchResult[]; error?: string }>
   imageDownload(opts: ImageDownloadOptions): Promise<{ path?: string; error?: string }>
+
+  /** Voiceover audio recording from microphone */
+  voiceoverSave(projectDir: string | null, baseName: string, data: Uint8Array): Promise<string>
 }
 
 export interface AgentSettings {

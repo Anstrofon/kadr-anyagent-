@@ -21,6 +21,7 @@ import { useBeatsUi } from '@/engine/beats'
 import { useChecksUi } from '@/engine/checks'
 import { useTtsUi } from './TtsDialog'
 import { useMotionTrackerUi } from './MotionTrackerDialog'
+import { useVoiceRecorderUi } from './VoiceRecorderDialog'
 import { evalAnim } from '@/engine/anim'
 import { spanToProject, projectToSrc, type VisibleSpan } from '@/engine/voiceDefects'
 import { useVoiceUi, setVerdict, clearVerdict, addUserDefect, setDefectsHidden } from '@/engine/voiceCheck'
@@ -1089,6 +1090,20 @@ function TrackRow({
               onClick={() => useEditor.getState().setMotionTrack(track.id)}
             >
               <Icon name="move" size={13} />
+            </button>
+          )}
+          {track.kind === 'audio' && (
+            <button
+              className="track-mic-btn"
+              data-act="track-arm-mic"
+              title={t('recTrackArm')}
+              aria-label={t('recTrackArm')}
+              onClick={(e) => {
+                e.stopPropagation()
+                useVoiceRecorderUi.getState().openRecorder(track.id)
+              }}
+            >
+              <Icon name="mic" size={13} />
             </button>
           )}
           <button

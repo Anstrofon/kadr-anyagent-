@@ -7,6 +7,7 @@ import { useT, type TKey } from '@/i18n'
 import { Icon, Spinner } from './icons'
 import { logWarn } from '@/engine/log'
 import { useOnion, toggleOnion } from '@/engine/onion'
+import { useVoiceRecorderUi } from './VoiceRecorderDialog'
 
 export function formatTime(t: number, fps: number): string {
   const sign = t < 0 ? '-' : ''
@@ -88,6 +89,15 @@ export function TransportBar() {
       </button>
       <button
         className="icon-only"
+        data-act="voice-record"
+        title={t('recordVoice')}
+        aria-label={t('recordVoice')}
+        onClick={() => useVoiceRecorderUi.getState().openRecorder()}
+      >
+        <Icon name="mic" />
+      </button>
+      <button
+        className="icon-only"
         data-act="snapshot"
         title={shot === 'fail' ? t('snapshotFail') : t('snapshot')}
         aria-label={t('snapshot')}
@@ -131,14 +141,22 @@ export function TransportBar() {
 export function LangSwitch() {
   const lang = useSettings((s) => s.lang)
   const setLang = useSettings((s) => s.setLang)
+  const nextLang = lang === 'uk' ? 'en' : lang === 'en' ? 'ru' : 'uk'
+  const title =
+    lang === 'uk'
+      ? 'Мова інтерфейсу: українська (клік — змінити)'
+      : lang === 'ru'
+      ? 'Язык интерфейса: русский (клик — изменить)'
+      : 'Interface language: English (click to cycle)'
+  const label = lang === 'uk' ? 'UA' : lang.toUpperCase()
   return (
     <button
       className="lang"
       data-act="lang"
-      title={lang === 'ru' ? 'Язык интерфейса: русский' : 'Interface language: English'}
-      onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}
+      title={title}
+      onClick={() => setLang(nextLang)}
     >
-      <Icon name="language" size={14} /> {lang === 'ru' ? 'RU' : 'EN'}
+      <Icon name="language" size={14} /> {label}
     </button>
   )
 }

@@ -284,22 +284,23 @@ export function snapPoints(
 }
 
 interface SettingsState {
-  lang: 'ru' | 'en'
+  lang: 'uk' | 'ru' | 'en'
   /** uniform lane height for all tracks, px */
   trackH: number
   /** clips, the range and markers snap to detected beats (default on) */
   snapBeats: boolean
-  setLang(l: 'ru' | 'en'): void
+  setLang(l: 'uk' | 'ru' | 'en'): void
   setTrackH(h: number): void
   setSnapBeats(v: boolean): void
 }
 
 export const useSettings = create<SettingsState>((set) => ({
-  lang: (localStorage.getItem('kadr.lang') as 'ru' | 'en') || 'ru',
+  lang: (localStorage.getItem('kadr.lang') as 'uk' | 'ru' | 'en') || 'uk',
   trackH: Math.min(140, Math.max(32, Number(localStorage.getItem('kadr.trackh')) || 56)),
   snapBeats: localStorage.getItem('kadr.snapBeats') !== '0',
   setLang: (lang) => {
     localStorage.setItem('kadr.lang', lang)
+    document.documentElement.lang = lang
     set({ lang })
   },
   setTrackH: (h) => {
@@ -573,7 +574,7 @@ interface EditorState {
    * one with the same path is already in the bin. One undo entry.
    */
   placeAudio(asset: Omit<MediaAsset, 'id'>, at: number,
-    opts?: { gain?: number; label?: string; history?: string }): { clipId: string; trackId: string; assetId: string }
+    opts?: { gain?: number; label?: string; history?: string; trackId?: string }): { clipId: string; trackId: string; assetId: string }
   updateClip(clipId: string, patch: Partial<Clip>): void
   /** Change speed/duration, rescaling keyframes and fades to stay on content.
       Optional `start` moves the clip too (a speed drag from the LEFT edge
@@ -1154,8 +1155,13 @@ export const useEditor = create<EditorState>((set, get) => ({
       }
       const start = Math.max(0, at)
       const end = start + Math.max(0.01, a.duration)
-      let track = p.tracks.find((t) => t.kind === 'audio' && !t.locked &&
-        !t.clips.some((c) => c.start < end - 1e-6 && c.start + c.duration > start + 1e-6))
+      let track = opts?.trackId
+        ? p.tracks.find((t) => t.id === opts.trackId && t.kind === 'audio' && !t.locked)
+        : undefined
+      if (!track) {
+        track = p.tracks.find((t) => t.kind === 'audio' && !t.locked &&
+          !t.clips.some((c) => c.start < end - 1e-6 && c.start + c.duration > start + 1e-6))
+      }
       if (!track) {
         track = makeTrack(p, 'audio')
         p.tracks.push(track)
