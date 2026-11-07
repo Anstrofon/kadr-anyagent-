@@ -1013,6 +1013,113 @@ body.kadr-popout .preview {
   cursor: nwse-resize;
 }
 
+/* Universal Transform Gizmo (Premiere Pro style direct manipulation) */
+.transform-gizmo {
+  position: absolute;
+  border: 1.5px solid #00c8ff;
+  outline: 1px dashed rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(0, 200, 255, 0.08);
+  cursor: move;
+  z-index: 10;
+  touch-action: none;
+  box-sizing: border-box;
+}
+
+.transform-gizmo .gizmo-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #ffffff;
+  border: 1.5px solid #0077ff;
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  z-index: 11;
+}
+
+.transform-gizmo .handle-tl {
+  top: -5px;
+  left: -5px;
+  cursor: nwse-resize;
+}
+
+.transform-gizmo .handle-tr {
+  top: -5px;
+  right: -5px;
+  cursor: nesw-resize;
+}
+
+.transform-gizmo .handle-bl {
+  bottom: -5px;
+  left: -5px;
+  cursor: nesw-resize;
+}
+
+.transform-gizmo .handle-br {
+  bottom: -5px;
+  right: -5px;
+  cursor: nwse-resize;
+}
+
+.transform-gizmo .gizmo-center-cross {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  margin-left: -6px;
+  pointer-events: none;
+}
+
+.transform-gizmo .gizmo-center-cross::before,
+.transform-gizmo .gizmo-center-cross::after {
+  content: '';
+  position: absolute;
+  background: #00c8ff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+
+.transform-gizmo .gizmo-center-cross::before {
+  top: 5px;
+  left: 0;
+  width: 12px;
+  height: 2px;
+}
+
+.transform-gizmo .gizmo-center-cross::after {
+  top: 0;
+  left: 5px;
+  width: 2px;
+  height: 12px;
+}
+
+.transform-gizmo .cross-dot {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 4px;
+  height: 4px;
+  background: #ffffff;
+  border-radius: 50%;
+}
+
+.transform-gizmo .gizmo-scale-badge {
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 15, 25, 0.85);
+  border: 1px solid rgba(0, 200, 255, 0.5);
+  color: #00e5ff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+
 /* ===========================================================================
    Transcripts, texts, subtitle panel
    =========================================================================== */

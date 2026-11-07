@@ -205,7 +205,48 @@ export function Timeline({ height }: { height: number }) {
   const view = useMemo(() => ({ start: sv.left / zoom, end: (sv.left + sv.width - HEADER_W) / zoom }), [sv, zoom])
   const [menu, setMenu] = useState<MenuState | null>(null)
 
-  const contentW = Math.max(800, (duration + 30) * zoom)
+  const playing = useEditor((s) => s.playing)
+  const prevPlayingRef = useRef(playing)
+
+  // Auto-scroll timeline to the red playhead needle when pausing or when playhead runs off-screen
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    // When paused from playing: ensure playhead needle is centered/visible in view
+    if (prevPlayingRef.current && !playing) {
+      const st = useEditor.getState()
+      const playheadPx = st.playhead * st.zoom
+      const visibleStartPx = el.scrollLeft
+      const visibleEndPx = el.scrollLeft + el.clientWidth - HEADER_W
+      if (playheadPx < visibleStartPx + 40 || playheadPx > visibleEndPx - 40) {
+        const targetLeft = Math.max(0, playheadPx - (el.clientWidth - HEADER_W) / 2)
+        el.scrollTo({ left: targetLeft, behavior: 'smooth' })
+      }
+    }
+    prevPlayingRef.current = playing
+  }, [playing])
+
+  // While playing: automatically page-scroll forward when playhead reaches right edge
+  useEffect(() => {
+    if (!playing) return
+    const el = scrollRef.current
+    if (!el) return
+    let raf = 0
+    const checkPlayhead = () => {
+      const st = useEditor.getState()
+      if (!st.playing) return
+      const playheadPx = st.playhead * st.zoom
+      const visibleEndPx = el.scrollLeft + el.clientWidth - HEADER_W
+      if (playheadPx >= visibleEndPx - 30) {
+        // Advance view so playhead stays at ~25% from left
+        el.scrollLeft = Math.max(0, playheadPx - (el.clientWidth - HEADER_W) * 0.25)
+      }
+      raf = requestAnimationFrame(checkPlayhead)
+    }
+    raf = requestAnimationFrame(checkPlayhead)
+    return () => cancelAnimationFrame(raf)
+  }, [playing])
 
   // a layout effect: the first measure lands before the first paint (no empty frame)
   useLayoutEffect(() => {

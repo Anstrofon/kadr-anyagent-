@@ -128,9 +128,41 @@ export function MotionTrackerDialog() {
       setProgress(p)
       // Update box position dynamically during tracking
       setBox((prev) => ({ ...prev, nx: p.nx, ny: p.ny }))
+      if (typeof p.time === 'number') {
+        const frameMediaTime = startMediaTime + p.time
+        setCurrentMediaTime(frameMediaTime)
+        syncToCurrentMediaTime(frameMediaTime)
+      }
     })
     return unbind
-  }, [])
+  }, [startMediaTime])
+
+  // When track results exist and user scrubs or plays video in dialog, update box to match tracked trajectory
+  useEffect(() => {
+    if (!trackResult || !trackResult.keyframes || trackResult.keyframes.length === 0) return
+    if (tracking) return
+    const relT = currentMediaTime - startMediaTime
+    if (relT < -0.05) return
+    const kfs = trackResult.keyframes
+    let closest = kfs[0]
+    let minDiff = Math.abs(closest.time - relT)
+    for (let i = 1; i < kfs.length; i++) {
+      const diff = Math.abs(kfs[i].time - relT)
+      if (diff < minDiff) {
+        minDiff = diff
+        closest = kfs[i]
+      }
+    }
+    if (minDiff < 0.15) {
+      setBox((prev) => ({
+        ...prev,
+        nx: closest.nx,
+        ny: closest.ny,
+        nw: closest.nw || prev.nw,
+        nh: closest.nh || prev.nh
+      }))
+    }
+  }, [currentMediaTime, trackResult, tracking, startMediaTime])
 
   if (!open || !clip || !asset) return null
 

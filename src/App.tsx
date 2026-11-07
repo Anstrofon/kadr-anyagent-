@@ -155,16 +155,21 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (target && target.isContentEditable)
+
       // a dialog owns the keyboard while it is open: Space on one of its
       // buttons used to press the button AND start playback behind it
       if (modalsOpen()) return
       const s = useEditor.getState()
       // e.code is keyboard-layout independent (works for ru/en)
       if (e.code === 'Space') {
+        if (isInput) return
         e.preventDefault()
+        e.stopPropagation()
         s.setPlaying(!s.playing)
+        return
       } else if (e.code === 'KeyS') {
         if (e.ctrlKey) {
           e.preventDefault()
