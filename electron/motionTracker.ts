@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow } from 'electron'
+import { app, ipcMain } from 'electron'
 import { spawn, ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'

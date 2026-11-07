@@ -573,9 +573,9 @@ function ColorGradingControls({ clip, fx }: { clip: Clip; fx: Effect }) {
     })
   const setP = (key: keyof ColorGradeParams, v: number) =>
     patchFx({ params: { ...fx.params, [key]: v } })
-  const num = (key: keyof ColorGradeParams) => {
+  const num = (key: keyof ColorGradeParams): number => {
     const v = fx.params[key]
-    return typeof v === 'number' ? v : COLOR_GRADE_DEFAULTS[key]
+    return typeof v === 'number' ? v : (COLOR_GRADE_DEFAULTS[key] ?? 0)
   }
 
   const applyLook = (lookParams: Partial<ColorGradeParams>) => {

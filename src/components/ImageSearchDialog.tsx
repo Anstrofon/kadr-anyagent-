@@ -4,7 +4,7 @@ import { Icon, Spinner } from './icons'
 import { useEditor } from '@/state/store'
 import { importFiles } from '@/engine/mediaImport'
 import { dirOf } from '@shared/paths'
-import type { ImageSearchResult, ImageSearchOptions } from '@shared/types'
+import type { ImageSearchResult } from '@shared/types'
 
 type SearchSource = 'web' | 'pinterest' | 'wallpapers' | 'transparent'
 

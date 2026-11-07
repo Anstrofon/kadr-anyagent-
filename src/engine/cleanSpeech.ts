@@ -1,7 +1,7 @@
 // Speech cleanup engine: silence shortening and breath detection/removal.
 import { create } from 'zustand'
 import { useEditor, findClip, uid } from '@/state/store'
-import type { CleanSpeechRequest, CleanSpeechResult, MediaAsset } from '@shared/types'
+import type { CleanSpeechResult, MediaAsset } from '@shared/types'
 
 export interface CleanSpeechOptions {
   minSilence: number // seconds, e.g. 0.4

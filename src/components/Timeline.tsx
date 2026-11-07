@@ -205,6 +205,8 @@ export function Timeline({ height }: { height: number }) {
   const view = useMemo(() => ({ start: sv.left / zoom, end: (sv.left + sv.width - HEADER_W) / zoom }), [sv, zoom])
   const [menu, setMenu] = useState<MenuState | null>(null)
 
+  const contentW = Math.max(800, (duration + 30) * zoom)
+
   const playing = useEditor((s) => s.playing)
   const prevPlayingRef = useRef(playing)
 

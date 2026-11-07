@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import { create } from 'zustand'
 import { useEditor, findClip } from '@/state/store'
 import { evalAnim } from '@/engine/anim'
-import { useT } from '@/i18n'
 import { Modal } from './Modal'
 import { Icon, Spinner } from './icons'
 import type { Clip, Keyframe, MotionTrackProgress, MotionTrackResult } from '@shared/types'
@@ -27,7 +26,6 @@ function formatTimecode(sec: number): string {
 }
 
 export function MotionTrackerDialog() {
-  const t = useT()
   const open = useMotionTrackerUi((s) => s.open)
   const clipId = useMotionTrackerUi((s) => s.clipId)
   const project = useEditor((s) => s.project)

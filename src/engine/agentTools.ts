@@ -1,6 +1,5 @@
 // High-level tools exposed to AI agents via MCP bridge.
 import { useEditor, findClip, uid } from '@/state/store'
-import { cleanSpeechForClip, CLEAN_SPEECH_DEFAULTS, type CleanSpeechOptions } from './cleanSpeech'
 import { COLOR_GRADE_DEFAULTS, COLOR_LOOK_PRESETS, type ColorGradeParams } from '@/gl/colorGrade'
 import type {
   YouTubeDownloadOptions,
@@ -38,7 +37,7 @@ export async function applyColorGrade(
     id: existingIdx !== -1 ? effects[existingIdx].id : uid(),
     type: 'colorGrade',
     enabled: true,
-    params: mergedParams
+    params: mergedParams as unknown as Record<string, number | string>
   }
 
   if (existingIdx !== -1) {
@@ -85,17 +84,21 @@ export async function downloadYouTubeMedia(
       : st.project.tracks.find((t) => t.kind === (isAudio ? 'audio' : 'video'))
 
     if (!targetTrack) {
-      targetTrack = st.addTrack(isAudio ? 'audio' : 'video')
+      st.addTrack(isAudio ? 'audio' : 'video')
+      const p = useEditor.getState().project
+      targetTrack = p.tracks.find((t) => t.kind === (isAudio ? 'audio' : 'video'))
     }
 
-    const atTime = typeof placement.at === 'number' ? placement.at : st.playhead
-    st.insertClipFromAsset(newAsset.id, targetTrack.id, atTime)
+    if (targetTrack) {
+      const atTime = typeof placement.at === 'number' ? placement.at : st.playhead
+      st.insertClipFromAsset(newAsset.id, targetTrack.id, atTime)
 
-    // find newly created clip
-    const updated = useEditor.getState()
-    const foundTrack = updated.project.tracks.find((t) => t.id === targetTrack!.id)
-    const newClip = foundTrack?.clips.find((c) => c.assetId === newAsset.id && Math.abs(c.start - atTime) < 0.05)
-    insertedClipId = newClip?.id || null
+      // find newly created clip
+      const updated = useEditor.getState()
+      const foundTrack = updated.project.tracks.find((t) => t.id === targetTrack.id)
+      const newClip = foundTrack?.clips.find((c) => c.assetId === newAsset.id && Math.abs(c.start - atTime) < 0.05)
+      insertedClipId = newClip?.id || null
+    }
   }
 
   return {
@@ -137,19 +140,23 @@ export async function downloadAndImportImage(
       : st.project.tracks.find((t) => t.kind === 'video')
 
     if (!targetTrack) {
-      targetTrack = st.addTrack('video')
+      st.addTrack('video')
+      const p = useEditor.getState().project
+      targetTrack = p.tracks.find((t) => t.kind === 'video')
     }
 
-    const atTime = typeof placement.at === 'number' ? placement.at : st.playhead
-    st.insertClipFromAsset(newAsset.id, targetTrack.id, atTime)
+    if (targetTrack) {
+      const atTime = typeof placement.at === 'number' ? placement.at : st.playhead
+      st.insertClipFromAsset(newAsset.id, targetTrack.id, atTime)
 
-    const updated = useEditor.getState()
-    const foundTrack = updated.project.tracks.find((t) => t.id === targetTrack!.id)
-    const newClip = foundTrack?.clips.find((c) => c.assetId === newAsset.id && Math.abs(c.start - atTime) < 0.05)
-    if (newClip && placement.duration && placement.duration > 0) {
-      updated.updateClip(newClip.id, { duration: placement.duration })
+      const updated = useEditor.getState()
+      const foundTrack = updated.project.tracks.find((t) => t.id === targetTrack.id)
+      const newClip = foundTrack?.clips.find((c) => c.assetId === newAsset.id && Math.abs(c.start - atTime) < 0.05)
+      if (newClip && placement.duration && placement.duration > 0) {
+        updated.updateClip(newClip.id, { duration: placement.duration })
+      }
+      insertedClipId = newClip?.id || null
     }
-    insertedClipId = newClip?.id || null
   }
 
   return {

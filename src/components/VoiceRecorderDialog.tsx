@@ -43,7 +43,6 @@ export function VoiceRecorderDialog({
   const t = useT()
   const tracks = useEditor((s) => s.project.tracks)
   const audioTracks = tracks.filter((tr) => tr.kind === 'audio')
-  const playhead = useEditor((s) => s.playhead)
 
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDevice, setSelectedDevice] = useState<string>('')
@@ -270,7 +269,7 @@ export function VoiceRecorderDialog({
         return
       }
 
-      const res = await saveVoiceoverClip({
+      await saveVoiceoverClip({
         wavData: wav,
         duration,
         at: startPlayheadRef.current,
@@ -347,7 +346,7 @@ export function VoiceRecorderDialog({
   }
 
   return (
-    <Modal open={open} onClose={() => { handleCancel(); onClose() }}>
+    <Modal title={t('recVoiceTitle')} onClose={() => { handleCancel(); onClose() }}>
       <div className="voice-rec-dialog">
         <div className="voice-rec-head">
           <div className="voice-rec-title">

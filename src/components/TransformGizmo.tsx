@@ -20,7 +20,7 @@ interface BoxCoords {
 function getClipDimensions(clip: Clip, project: Project): { w: number; h: number } {
   if (clip.kind === 'media') {
     const asset = clip.assetId ? project.assets.find((a) => a.id === clip.assetId) : null
-    if (asset?.width && asset.height) {
+    if (asset?.width && asset?.height) {
       return { w: asset.width, h: asset.height }
     }
     return { w: project.width, h: project.height }
@@ -82,11 +82,12 @@ export function TransformGizmo({ canvas }: { canvas: React.RefObject<HTMLCanvasE
     if (!el) return
     const measure = () => {
       const c = el.getBoundingClientRect()
-      const p = el.parentElement!.getBoundingClientRect()
+      const p = el.parentElement?.getBoundingClientRect()
+      if (!p) return
       setCanvasRect({ left: c.left - p.left, top: c.top - p.top, w: c.width, h: c.height })
     }
     measure()
-    const win = el.ownerDocument.defaultView ?? window
+    const win = el.ownerDocument?.defaultView ?? window
     let raf = 0
     const ro = new win.ResizeObserver(() => {
       win.cancelAnimationFrame(raf)
@@ -106,7 +107,8 @@ export function TransformGizmo({ canvas }: { canvas: React.RefObject<HTMLCanvasE
 
     const handleCanvasPointerDown = (e: MouseEvent) => {
       // If clicking directly on an active gizmo handle, let gizmo handle it
-      if ((e.target as HTMLElement).closest('.transform-gizmo')) return
+      const targetEl = e.target as HTMLElement | null
+      if (targetEl?.closest?.('.transform-gizmo')) return
 
       const cRect = el.getBoundingClientRect()
       if (

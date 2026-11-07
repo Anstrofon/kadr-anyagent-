@@ -157,7 +157,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
       const tag = target?.tagName
-      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (target && target.isContentEditable)
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!(target && target.isContentEditable)
 
       // a dialog owns the keyboard while it is open: Space on one of its
       // buttons used to press the button AND start playback behind it
