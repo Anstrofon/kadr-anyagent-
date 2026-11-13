@@ -88,6 +88,19 @@ interface AgentProfile {
 }
 
 const PROFILES: Record<string, AgentProfile> = {
+  agy: {
+    id: 'agy',
+    label: 'Antigravity CLI (agy)',
+    defaultCommand: 'agy',
+    buildArgs: (_mcpCfg, _hint) => [],
+    sessionMarkers: [
+      'ANTIGRAVITY_AGENT',
+      'ANTIGRAVITY_SESSION',
+      'AGY_SESSION'
+    ],
+    skillsDir: join(process.env.HOME || '', '.gemini', 'antigravity', 'skills')
+  },
+
   claude: {
     id: 'claude',
     label: 'Claude Code',
@@ -402,6 +415,27 @@ async function findExecutable(cmd: string): Promise<string | null> {
     }
   }
 
+  if (cmd === 'agy' || cmd === 'antigravity') {
+    const candidates = [
+      'agy',
+      '/usr/bin/agy',
+      '/usr/local/bin/agy',
+      join(process.env.HOME || '', '.gemini/antigravity-cli/bin/agy'),
+      join(process.env.HOME || '', '.local/bin/agy')
+    ]
+    for (const c of candidates) {
+      if (c.includes('/')) {
+        try {
+          await fs.access(c, 1 /* X_OK */)
+          return c
+        } catch { /* continue */ }
+      } else {
+        const found = await which(c)
+        if (found) return found
+      }
+    }
+  }
+
   if (cmd === 'opencode' || cmd === 'opencode-cli') {
     const candidates = [
       'opencode',
@@ -451,8 +485,8 @@ async function resolveProfile(cfg: AgentConfig): Promise<{ profile: AgentProfile
     return { profile, bin }
   }
 
-  // Auto-detect: try opencode first, then claude
-  for (const id of ['opencode', 'claude']) {
+  // Auto-detect: try opencode first, then claude, then agy
+  for (const id of ['opencode', 'claude', 'agy']) {
     const profile = PROFILES[id]
     const bin = await findExecutable(profile.defaultCommand)
     if (bin) return { profile, bin }
@@ -533,7 +567,9 @@ async function spawnSession(
     }, null, 1)
   )
 
-  const args = cfg.args ?? profile.buildArgs(mcpCfgPath, SYSTEM_HINT)
+  const isAgy = profile.id === 'agy' || (cfg.command && /(^|[/\\])agy$/.test(cfg.command))
+  const defaultArgs = isAgy ? [] : profile.buildArgs(mcpCfgPath, SYSTEM_HINT)
+  const args = cfg.args ?? defaultArgs
   let dir = cwd || app.getPath('home')
   try { await fs.access(dir) } catch { dir = app.getPath('home') }
 
@@ -692,6 +728,35 @@ async function syncSkills(): Promise<void> {
   }
 }
 
+/**
+ * Automatically register Kadr in Antigravity's global MCP configuration (~/.gemini/config/mcp_config.json)
+ * so that both Antigravity CLI (agy) and the desktop assistant can communicate with the active editor.
+ */
+async function syncAntigravityMcp(): Promise<void> {
+  try {
+    const home = process.env.HOME || app.getPath('home')
+    const configDir = join(home, '.gemini', 'config')
+    const configPath = join(configDir, 'mcp_config.json')
+    let cfg: { mcpServers?: Record<string, unknown> } = {}
+    try {
+      cfg = JSON.parse(await fs.readFile(configPath, 'utf8'))
+    } catch {
+      // file might not exist yet
+    }
+    cfg.mcpServers = cfg.mcpServers || {}
+    const bridgeScript = join(app.getAppPath(), 'electron', 'mcp-bridge.cjs')
+    cfg.mcpServers.kadr = {
+      command: 'node',
+      args: [bridgeScript],
+      disabled: false
+    }
+    await fs.mkdir(configDir, { recursive: true })
+    await fs.writeFile(configPath, JSON.stringify(cfg, null, 2), 'utf8')
+  } catch (err) {
+    console.warn('[agent] failed to sync Antigravity MCP config:', err)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // IPC registration
 // ---------------------------------------------------------------------------
@@ -705,6 +770,7 @@ async function syncSkills(): Promise<void> {
 export function registerAgentIpc(getWin: () => BrowserWindow | null) {
   void sweepStaleSessions() // leftovers from a hard-killed previous run
   void syncSkills()
+  void syncAntigravityMcp()
   void ensureEditorBridge(getWin)
   ipcMain.handle('claude:open', (_e, cols: number, rows: number, cwd: string | null) => {
     const win = getWin()

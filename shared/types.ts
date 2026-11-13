@@ -1345,7 +1345,7 @@ export interface KadrApi {
 }
 
 export interface AgentSettings {
-  agent: 'opencode' | 'claude' | 'custom'
+  agent: 'opencode' | 'claude' | 'agy' | 'custom'
   command?: string
   args?: string[]
   env?: Record<string, string>

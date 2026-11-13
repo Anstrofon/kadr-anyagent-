@@ -12,7 +12,7 @@ export function AgentSettingsDialog({
   onClose: () => void
   onSaved?: () => void
 }) {
-  const [agent, setAgent] = useState<'opencode' | 'claude' | 'custom'>('opencode')
+  const [agent, setAgent] = useState<'opencode' | 'claude' | 'agy' | 'custom'>('opencode')
   const [command, setCommand] = useState('')
   const [args, setArgs] = useState('')
   const [envVars, setEnvVars] = useState('')
@@ -109,13 +109,15 @@ export function AgentSettingsDialog({
           <select
             value={agent}
             onChange={(e) => {
-              const val = e.target.value as 'opencode' | 'claude' | 'custom'
+              const val = e.target.value as 'opencode' | 'claude' | 'agy' | 'custom'
               setAgent(val)
+              if (val === 'agy' && !command) setCommand('agy')
               if (val === 'opencode' && !command) setCommand('opencode')
               if (val === 'claude' && !command) setCommand('claude')
             }}
             style={{ flex: 1 }}
           >
+            <option value="agy">Antigravity CLI (agy)</option>
             <option value="opencode">opencode (відкритий агент)</option>
             <option value="claude">Claude Code CLI</option>
             <option value="custom">Власна команда (Custom CLI)</option>
@@ -127,7 +129,15 @@ export function AgentSettingsDialog({
           <input
             type="text"
             value={command}
-            placeholder={agent === 'opencode' ? 'opencode (або повний шлях)' : agent === 'claude' ? 'claude' : 'назва команди'}
+            placeholder={
+              agent === 'agy'
+                ? 'agy (або /usr/bin/agy)'
+                : agent === 'opencode'
+                ? 'opencode (або повний шлях)'
+                : agent === 'claude'
+                ? 'claude'
+                : 'назва команди'
+            }
             onChange={(e) => setCommand(e.target.value)}
             style={{ flex: 1 }}
           />
