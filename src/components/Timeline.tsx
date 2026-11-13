@@ -230,69 +230,79 @@ export function Timeline({ height }: { height: number }) {
     const contentEl = scrollEl.querySelector<HTMLElement>('.tl-content')
     if (!contentEl) return
 
+    let lastX = startClientX
+    let lastY = startClientY
+
+    const calcSelection = (curX: number, curY: number) => {
+      const minX = Math.min(startClientX, curX)
+      const maxX = Math.max(startClientX, curX)
+      const minY = Math.min(startClientY, curY)
+      const maxY = Math.max(startClientY, curY)
+
+      const cRect = contentEl.getBoundingClientRect()
+      setMarqueeBox({
+        left: Math.max(0, minX - cRect.left),
+        top: Math.max(0, minY - cRect.top),
+        width: Math.max(1, maxX - minX),
+        height: Math.max(1, maxY - minY)
+      })
+
+      const st = useEditor.getState()
+      const z = st.zoom
+      const project = st.project
+      const hitIds: string[] = []
+
+      const laneEls = scrollEl.querySelectorAll<HTMLElement>('[data-lane]')
+      laneEls.forEach((laneEl) => {
+        const laneTrackId = laneEl.dataset.lane
+        if (!laneTrackId) return
+        const tr = project.tracks.find((t) => t.id === laneTrackId)
+        if (!tr) return
+
+        const laneRect = laneEl.getBoundingClientRect()
+        if (maxY < laneRect.top || minY > laneRect.bottom) return
+
+        const tStart = Math.max(0, (minX - laneRect.left) / z)
+        const tEnd = Math.max(0, (maxX - laneRect.left) / z)
+
+        for (const clip of tr.clips) {
+          const cStart = clip.start
+          const cEnd = clip.start + clip.duration
+          if (cStart <= tEnd && cEnd >= tStart) {
+            hitIds.push(clip.id)
+          }
+        }
+      })
+
+      const expandedHits = withLinked(project, hitIds)
+      const combined = isShift
+        ? Array.from(new Set([...initialSel, ...expandedHits]))
+        : expandedHits
+
+      st.select(combined)
+    }
+
     windowDrag(
       e,
       (_dx, ev) => {
+        lastX = ev.clientX
+        lastY = ev.clientY
         const dist = Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY)
         if (!isDraggingMarquee && dist >= 4) {
           isDraggingMarquee = true
         }
         if (!isDraggingMarquee) return
 
-        const minX = Math.min(startClientX, ev.clientX)
-        const maxX = Math.max(startClientX, ev.clientX)
-        const minY = Math.min(startClientY, ev.clientY)
-        const maxY = Math.max(startClientY, ev.clientY)
-
-        const cRect = contentEl.getBoundingClientRect()
-        setMarqueeBox({
-          left: Math.max(0, minX - cRect.left),
-          top: Math.max(0, minY - cRect.top),
-          width: Math.max(1, maxX - minX),
-          height: Math.max(1, maxY - minY)
-        })
-
-        const st = useEditor.getState()
-        const z = st.zoom
-        const project = st.project
-        const hitIds: string[] = []
-
-        const laneEls = scrollEl.querySelectorAll<HTMLElement>('.tl-lane[data-lane]')
-        laneEls.forEach((laneEl) => {
-          const laneTrackId = laneEl.dataset.lane
-          if (!laneTrackId) return
-          const tr = project.tracks.find((t) => t.id === laneTrackId)
-          if (!tr) return
-
-          const laneRect = laneEl.getBoundingClientRect()
-          if (maxY < laneRect.top || minY > laneRect.bottom) return
-
-          const tStart = Math.max(0, (minX - laneRect.left) / z)
-          const tEnd = Math.max(0, (maxX - laneRect.left) / z)
-
-          for (const clip of tr.clips) {
-            const cStart = clip.start
-            const cEnd = clip.start + clip.duration
-            if (cStart <= tEnd && cEnd >= tStart) {
-              hitIds.push(clip.id)
-            }
-          }
-        })
-
-        const expandedHits = withLinked(project, hitIds)
-        const combined = isShift
-          ? Array.from(new Set([...initialSel, ...expandedHits]))
-          : expandedHits
-
-        st.select(combined)
+        calcSelection(ev.clientX, ev.clientY)
       },
       () => {
         if (isDraggingMarquee) {
+          calcSelection(lastX, lastY)
           setMarqueeBox(null)
         } else {
           setMarqueeBox(null)
           const st = useEditor.getState()
-          const laneEl = document.elementFromPoint(startClientX, startClientY)?.closest<HTMLElement>('.tl-lane')
+          const laneEl = document.elementFromPoint(startClientX, startClientY)?.closest<HTMLElement>('[data-lane]')
           if (laneEl) {
             const laneRect = laneEl.getBoundingClientRect()
             const time = Math.max(0, (startClientX - laneRect.left) / st.zoom)
@@ -1943,7 +1953,13 @@ const ClipView = memo(function ClipView({
       toggleSelection()
       return
     }
-    if (!selected) st.select(linkedIds)
+    if (e.shiftKey) {
+      const sel = new Set(st.selection)
+      linkedIds.forEach((id) => sel.add(id))
+      st.select([...sel])
+    } else if (!selected) {
+      st.select(linkedIds)
+    }
 
     const rect = e.currentTarget.getBoundingClientRect()
     const lx = e.clientX - rect.left
