@@ -24,7 +24,7 @@ import { Icon } from './components/icons'
 import { modalsOpen } from './components/Modal'
 import { rememberProject } from './engine/storage'
 import { usePopout, previewHost, setPreviewSlot, dockPreviewWindow } from './engine/popout'
-import { useEditor, newProject } from './state/store'
+import { useEditor, newProject, findClip } from './state/store'
 import { dropPayload, dropUsable, importDrop, importFiles } from './engine/mediaImport'
 import { syncProjectFragments } from './engine/fragments'
 import { useT, type TKey } from './i18n'
@@ -201,8 +201,28 @@ export default function App() {
             }
           }).catch((err) => logError('буфер обмена', 'вставить не удалось', err))
         }
+      } else if (e.code === 'KeyG') {
+        if (e.ctrlKey) {
+          e.preventDefault()
+          if (e.shiftKey) s.ungroupSelection()
+          else s.groupSelection()
+        } else if (!isInput && !e.altKey && !e.metaKey) {
+          e.preventDefault()
+          s.groupSelection()
+        }
       } else if (e.code === 'KeyU') {
-        s.toggleLinkSelection()
+        if (!isInput && !e.ctrlKey && !e.altKey && !e.metaKey) {
+          e.preventDefault()
+          const p = s.project
+          const hasGroup = s.selection.some((id) => {
+            const f = findClip(p, id)
+            return !!f?.clip.groupId
+          })
+          if (hasGroup) s.ungroupSelection()
+          else s.toggleLinkSelection()
+        } else if (e.ctrlKey) {
+          s.toggleLinkSelection()
+        }
       } else if (e.code === 'KeyM' && !e.ctrlKey && !e.altKey) {
         s.addMarker(s.playhead)
       } else if (e.code === 'KeyR' && !e.ctrlKey && !e.altKey && !e.metaKey) {

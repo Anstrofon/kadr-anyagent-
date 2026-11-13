@@ -240,15 +240,30 @@ export function rescaleClipAnims(c: Clip, factor: number) {
   if (c.fadeOut) c.fadeOut *= factor
 }
 
-/** Expand clip ids with their linked partners (video + its audio). */
+/** Expand clip ids with their linked partners (video + its audio) and grouped clips. */
 export function withLinked(p: Project, ids: string[]): string[] {
   const out = new Set(ids)
-  const links = new Set<string>()
-  for (const t of p.tracks) {
-    for (const c of t.clips) if (out.has(c.id) && c.linkId) links.add(c.linkId)
-  }
-  for (const t of p.tracks) {
-    for (const c of t.clips) if (c.linkId && links.has(c.linkId)) out.add(c.id)
+  let changed = true
+  while (changed) {
+    const beforeSize = out.size
+    const links = new Set<string>()
+    const groups = new Set<string>()
+    for (const t of p.tracks) {
+      for (const c of t.clips) {
+        if (out.has(c.id)) {
+          if (c.linkId) links.add(c.linkId)
+          if (c.groupId) groups.add(c.groupId)
+        }
+      }
+    }
+    for (const t of p.tracks) {
+      for (const c of t.clips) {
+        if ((c.linkId && links.has(c.linkId)) || (c.groupId && groups.has(c.groupId))) {
+          out.add(c.id)
+        }
+      }
+    }
+    changed = out.size > beforeSize
   }
   return [...out]
 }
@@ -590,6 +605,10 @@ interface EditorState {
   ): void
   /** Unlink selected linked clips, or link an audio+video pair. */
   toggleLinkSelection(): void
+  /** Create a solid unified group from all selected clips (Vegas / Premiere style). */
+  groupSelection(): void
+  /** Break solid groups belonging to selected clips. */
+  ungroupSelection(): void
   moveClip(clipId: string, trackId: string, start: number): void
   /** Batch-update clip positions (group drag), optionally across tracks. */
   setClipStarts(entries: { id: string; start: number; trackId?: string }[]): void
@@ -1372,6 +1391,53 @@ export const useEditor = create<EditorState>((set, get) => ({
     })
   },
 
+  groupSelection: () => {
+    const s = get()
+    const sel = s.selection
+    if (sel.length < 2) return
+    s.pushHistory('hGroup')
+    const newGroupId = uid()
+    set((st) => {
+      const p = cloneProject(st.project)
+      for (const tr of p.tracks) {
+        for (const c of tr.clips) {
+          if (sel.includes(c.id)) {
+            c.groupId = newGroupId
+          }
+        }
+      }
+      return { project: p }
+    })
+  },
+
+  ungroupSelection: () => {
+    const s = get()
+    const sel = s.selection
+    if (!sel.length) return
+    const p = s.project
+    const targetGroupIds = new Set<string>()
+    for (const tr of p.tracks) {
+      for (const c of tr.clips) {
+        if (sel.includes(c.id) && c.groupId) {
+          targetGroupIds.add(c.groupId)
+        }
+      }
+    }
+    if (targetGroupIds.size === 0) return
+    s.pushHistory('hGroup')
+    set((st) => {
+      const nextP = cloneProject(st.project)
+      for (const tr of nextP.tracks) {
+        for (const c of tr.clips) {
+          if (c.groupId && targetGroupIds.has(c.groupId)) {
+            c.groupId = undefined
+          }
+        }
+      }
+      return { project: nextP }
+    })
+  },
+
   insertTextClip: (at) => {
     const s = get()
     s.pushHistory('hInsert')
@@ -1488,8 +1554,9 @@ export const useEditor = create<EditorState>((set, get) => ({
     set((st) => {
       const p = cloneProject(st.project)
       const newIds: string[] = []
-      // halves of a linked pair stay linked pairwise
+      // halves of a linked pair stay linked pairwise, halves of a group stay grouped pairwise
       const rightLinks = new Map<string, string>()
+      const rightGroups = new Map<string, string>()
       for (const orig of targets) {
         const f = findClip(p, orig.id)
         if (!f) continue
@@ -1500,6 +1567,11 @@ export const useEditor = create<EditorState>((set, get) => ({
           if (!rightLinks.has(c.linkId)) rightLinks.set(c.linkId, uid())
           rightLink = rightLinks.get(c.linkId)
         }
+        let rightGroup: string | undefined
+        if (c.groupId) {
+          if (!rightGroups.has(c.groupId)) rightGroups.set(c.groupId, uid())
+          rightGroup = rightGroups.get(c.groupId)
+        }
         const right: Clip = {
           ...clone(c),
           id: uid(),
@@ -1507,7 +1579,8 @@ export const useEditor = create<EditorState>((set, get) => ({
           duration: c.duration - offset,
           inPoint: c.inPoint + offset * (c.speed || 1),
           fadeIn: 0,
-          linkId: rightLink
+          linkId: rightLink,
+          groupId: rightGroup
         }
         shiftClipAnims(right, -offset)
         c.duration = offset
@@ -1643,6 +1716,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       const base = Math.min(...st.clipboard.map((i) => i.clip.start))
       const ids: string[] = []
       const linkMap = new Map<string, string>() // fresh linkIds for pasted pairs
+      const groupMap = new Map<string, string>() // fresh groupIds for pasted groups
       for (const item of st.clipboard) {
         const track =
           p.tracks.find((t) => t.id === item.trackId && !t.locked) ??
@@ -1653,11 +1727,17 @@ export const useEditor = create<EditorState>((set, get) => ({
           if (!linkMap.has(item.clip.linkId)) linkMap.set(item.clip.linkId, uid())
           linkId = linkMap.get(item.clip.linkId)
         }
+        let groupId: string | undefined
+        if (item.clip.groupId) {
+          if (!groupMap.has(item.clip.groupId)) groupMap.set(item.clip.groupId, uid())
+          groupId = groupMap.get(item.clip.groupId)
+        }
         const clip: Clip = {
           ...clone(item.clip),
           id: uid(),
           start: Math.max(0, st.playhead + (item.clip.start - base)),
-          linkId
+          linkId,
+          groupId
         }
         track.clips.push(clip)
         ids.push(clip.id)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
-import { useEditor, findClip } from '@/state/store'
+import { useEditor, findClip, withLinked } from '@/state/store'
 import { evalAnim } from '@/engine/anim'
 import { usePopout } from '@/engine/popout'
 import { useT } from '@/i18n'
@@ -155,8 +155,8 @@ export function TransformGizmo({ canvas }: { canvas: React.RefObject<HTMLCanvasE
             clickProjY >= objY - halfH &&
             clickProjY <= objY + halfH
           ) {
-            // Hit! Select this clip directly from preview!
-            st.select([clip.id])
+            // Hit! Select this clip (and its group/linked partners) directly from preview!
+            st.select(withLinked(curProj, [clip.id]))
             return
           }
         }

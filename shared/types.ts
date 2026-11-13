@@ -168,6 +168,8 @@ export interface Clip {
   effects: Effect[]
   /** clips created together (video + its audio) share a linkId and move as one */
   linkId?: string
+  /** clips grouped by the user share a groupId and move/select as one solid block */
+  groupId?: string
   transitionIn?: Transition
   transitionOut?: Transition
   label?: string

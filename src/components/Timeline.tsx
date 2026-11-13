@@ -210,6 +210,120 @@ export function Timeline({ height }: { height: number }) {
   const playing = useEditor((s) => s.playing)
   const prevPlayingRef = useRef(playing)
 
+  // Marquee selection state for dragging a selection rectangle with the mouse across timeline
+  const [marqueeBox, setMarqueeBox] = useState<{
+    left: number
+    top: number
+    width: number
+    height: number
+  } | null>(null)
+
+  const startTimelineMarquee = (e: React.PointerEvent) => {
+    const startClientX = e.clientX
+    const startClientY = e.clientY
+    const isShift = e.shiftKey
+    const initialSel = isShift ? useEditor.getState().selection : []
+    let isDraggingMarquee = false
+
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    const contentEl = scrollEl.querySelector<HTMLElement>('.tl-content')
+    if (!contentEl) return
+
+    windowDrag(
+      e,
+      (_dx, ev) => {
+        const dist = Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY)
+        if (!isDraggingMarquee && dist >= 4) {
+          isDraggingMarquee = true
+        }
+        if (!isDraggingMarquee) return
+
+        const minX = Math.min(startClientX, ev.clientX)
+        const maxX = Math.max(startClientX, ev.clientX)
+        const minY = Math.min(startClientY, ev.clientY)
+        const maxY = Math.max(startClientY, ev.clientY)
+
+        const cRect = contentEl.getBoundingClientRect()
+        setMarqueeBox({
+          left: Math.max(0, minX - cRect.left),
+          top: Math.max(0, minY - cRect.top),
+          width: Math.max(1, maxX - minX),
+          height: Math.max(1, maxY - minY)
+        })
+
+        const st = useEditor.getState()
+        const z = st.zoom
+        const project = st.project
+        const hitIds: string[] = []
+
+        const laneEls = scrollEl.querySelectorAll<HTMLElement>('.tl-lane[data-lane]')
+        laneEls.forEach((laneEl) => {
+          const laneTrackId = laneEl.dataset.lane
+          if (!laneTrackId) return
+          const tr = project.tracks.find((t) => t.id === laneTrackId)
+          if (!tr) return
+
+          const laneRect = laneEl.getBoundingClientRect()
+          if (maxY < laneRect.top || minY > laneRect.bottom) return
+
+          const tStart = Math.max(0, (minX - laneRect.left) / z)
+          const tEnd = Math.max(0, (maxX - laneRect.left) / z)
+
+          for (const clip of tr.clips) {
+            const cStart = clip.start
+            const cEnd = clip.start + clip.duration
+            if (cStart <= tEnd && cEnd >= tStart) {
+              hitIds.push(clip.id)
+            }
+          }
+        })
+
+        const expandedHits = withLinked(project, hitIds)
+        const combined = isShift
+          ? Array.from(new Set([...initialSel, ...expandedHits]))
+          : expandedHits
+
+        st.select(combined)
+      },
+      () => {
+        if (isDraggingMarquee) {
+          setMarqueeBox(null)
+        } else {
+          setMarqueeBox(null)
+          const st = useEditor.getState()
+          const laneEl = document.elementFromPoint(startClientX, startClientY)?.closest<HTMLElement>('.tl-lane')
+          if (laneEl) {
+            const laneRect = laneEl.getBoundingClientRect()
+            const time = Math.max(0, (startClientX - laneRect.left) / st.zoom)
+            st.setPlayhead(time)
+          } else {
+            const cRect = contentEl.getBoundingClientRect()
+            const time = Math.max(0, (startClientX - (cRect.left + HEADER_W)) / st.zoom)
+            st.setPlayhead(time)
+          }
+          if (!isShift) {
+            st.select([])
+          }
+        }
+      }
+    )
+  }
+
+  const onTimelineBgDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    const tag = (e.target as HTMLElement).tagName
+    if (tag === 'BUTTON' || tag === 'INPUT') return
+    const el = e.target as HTMLElement
+    if (
+      el === scrollRef.current ||
+      el.classList.contains('tl-content') ||
+      el.classList.contains('tl-overlays')
+    ) {
+      startTimelineMarquee(e)
+    }
+  }
+
   // Auto-scroll timeline to the red playhead needle when pausing or when playhead runs off-screen
   useEffect(() => {
     const el = scrollRef.current
@@ -427,6 +541,7 @@ export function Timeline({ height }: { height: number }) {
           <Icon name="speech" /> {t('ttsButton')}
         </button>
         <DefectButtons />
+        <GroupButtons />
         <span className="dim hint-inline">{t('dropHint')}</span>
         <span className="flex1" />
         <label className="zoom-ctl">
@@ -467,7 +582,7 @@ export function Timeline({ height }: { height: number }) {
           />
         </label>
       </div>
-      <div className="tl-scroll" ref={scrollRef} onDragOver={onAnyDragOver} onDrop={onAnyDrop}>
+      <div className="tl-scroll" ref={scrollRef} onDragOver={onAnyDragOver} onDrop={onAnyDrop} onPointerDown={onTimelineBgDown}>
         <div className="tl-content" style={{ width: HEADER_W + contentW, ['--z' as string]: zoom, ['--hw' as string]: `${HEADER_W}px` }}>
           <RulerRow contentW={contentW} view={view} />
           {tracks.map((track) => (
@@ -478,8 +593,20 @@ export function Timeline({ height }: { height: number }) {
               contentW={contentW}
               view={view}
               onMenu={setMenu}
+              onStartMarquee={startTimelineMarquee}
             />
           ))}
+          {marqueeBox && (
+            <div
+              className="tl-marquee"
+              style={{
+                left: marqueeBox.left,
+                top: marqueeBox.top,
+                width: marqueeBox.width,
+                height: marqueeBox.height
+              }}
+            />
+          )}
           {/* zero width, full height: takes no pointer events itself and changes
               no coordinates — it exists so a zoom gesture can scale all of
               these together (.tl-content.zooming) */}
@@ -618,6 +745,38 @@ function TrackMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) 
         </>
       ) : (
         <>
+          {(() => {
+            const st = useEditor.getState()
+            const selClips = st.selection
+              .map((id) => findClip(st.project, id)?.clip)
+              .filter((c): c is Clip => !!c)
+            const hasGroup = selClips.some((c) => !!c.groupId)
+            const canGroup = st.selection.length >= 2
+            return (
+              <>
+                {hasGroup && (
+                  <button
+                    onClick={() => {
+                      useEditor.getState().ungroupSelection()
+                      onClose()
+                    }}
+                  >
+                    <Icon name="unlink" size={14} /> {t('ungroupClips')}
+                  </button>
+                )}
+                {canGroup && (
+                  <button
+                    onClick={() => {
+                      useEditor.getState().groupSelection()
+                      onClose()
+                    }}
+                  >
+                    <Icon name="link" size={14} /> {t('groupClips')}
+                  </button>
+                )}
+              </>
+            )
+          })()}
           {menu.linked ? (
             <button
               onClick={() => {
@@ -1008,13 +1167,14 @@ const SPEED_SNAPS = [
 ]
 
 function TrackRow({
-  track, trackH, contentW, view, onMenu
+  track, trackH, contentW, view, onMenu, onStartMarquee
 }: {
   track: Track
   trackH: number
   contentW: number
   view: ViewWindow
   onMenu: (m: MenuState) => void
+  onStartMarquee: (e: React.PointerEvent) => void
 }) {
   const t = useT()
   const reorder = useRef<{ pushed: boolean } | null>(null)
@@ -1080,14 +1240,14 @@ function TrackRow({
 
   const onLaneDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
+    if (e.button !== 0) return
     if (e.ctrlKey) {
       const rect = e.currentTarget.getBoundingClientRect()
       const time = (e.clientX - rect.left) / useEditor.getState().zoom
       useEditor.getState().closeGapAt(track.id, time)
       return
     }
-    if (!e.shiftKey) useEditor.getState().select([])
-    startScrubOrRange(e, e.currentTarget)
+    onStartMarquee(e)
   }
 
   // drag the header vertically to reorder tracks
@@ -1234,6 +1394,44 @@ function TrackRow({
         <EventTicks track={track} />
       </div>
     </div>
+  )
+}
+
+function GroupButtons() {
+  const t = useT()
+  const selection = useEditor((s) => s.selection)
+  const project = useEditor((s) => s.project)
+  if (!selection.length) return null
+
+  const clips = selection
+    .map((id) => findClip(project, id)?.clip)
+    .filter((c): c is Clip => !!c)
+  const hasGroup = clips.some((c) => !!c.groupId)
+  const canGroup = selection.length >= 2
+
+  if (!hasGroup && !canGroup) return null
+
+  return (
+    <>
+      {canGroup && (
+        <button
+          data-act="group"
+          onClick={() => useEditor.getState().groupSelection()}
+          title={t('groupClips')}
+        >
+          <Icon name="link" size={13} /> {t('groupClips')}
+        </button>
+      )}
+      {hasGroup && (
+        <button
+          data-act="ungroup"
+          onClick={() => useEditor.getState().ungroupSelection()}
+          title={t('ungroupClips')}
+        >
+          <Icon name="unlink" size={13} /> {t('ungroupClips')}
+        </button>
+      )}
+    </>
   )
 }
 
@@ -1681,7 +1879,7 @@ const ClipView = memo(function ClipView({
     if (track.locked || e.button !== 0) return
     e.stopPropagation()
     const st = useEditor.getState()
-    const linkedIds = withLinked(st.project, [clip.id])
+    const linkedIds = e.altKey ? [clip.id] : withLinked(st.project, [clip.id])
     if (e.ctrlKey) {
       // Ctrl+drag near EITHER edge = speed (Vegas-style time stretch) —
       // the same gesture as the extend handles, but forgiving about where
@@ -1984,7 +2182,7 @@ const ClipView = memo(function ClipView({
   const isText = clip.kind === 'text'
   const fadeIn = clip.fadeIn ?? 0
   const fadeOut = clip.fadeOut ?? 0
-  const cls = `clip ${track.kind} ${selected ? 'selected' : ''} ${isText ? 'text-clip' : ''} ${clip.kind === 'remotion' ? 'remotion-clip' : ''}`
+  const cls = `clip ${track.kind} ${selected ? 'selected' : ''} ${isText ? 'text-clip' : ''} ${clip.kind === 'remotion' ? 'remotion-clip' : ''} ${clip.groupId ? 'grouped' : ''}`
   // A clip a few pixels wide shows nothing but its colour: its handles, level
   // line, label and waveform can be neither seen nor grabbed. Zoomed out on a
   // long project that is most of them (a 19-minute project: ~600 clips on
@@ -2080,6 +2278,7 @@ const ClipView = memo(function ClipView({
       <span className="clip-label">
         {clip.kind === 'remotion' && <Icon name="atom" size={11} />}
         {clip.linkId && <Icon name="link" size={11} />}
+        {clip.groupId && <span className="clip-group-badge" title={t('clipGrouped')}>[G]</span>}
         <span>
           {isText ? `T: ${clip.text}` : clip.label}
           {speed !== 1 ? ` ×${speed.toFixed(2)}` : ''}
